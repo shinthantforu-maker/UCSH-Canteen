@@ -13,17 +13,18 @@ if (!isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'admin') {
 $message = "";
 $message_type = "";
 
-// Add special_note column if not exists
-$conn->query("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS special_note VARCHAR(255) DEFAULT NULL");
+// Column မရှိပါက ထည့်သွင်းရန် try-catch ဖြင့် လုံခြုံစွာ စစ်ဆေးခြင်း
+try {
+    $conn->query("ALTER TABLE menu_items ADD special_note VARCHAR(255) DEFAULT NULL");
+} catch (Exception $e) {
+    // Column ရှိပြီးသား သို့မဟုတ် Error တက်ပါက လျစ်လျူရှုမည် (Crash မဖြစ်စေရန်)
+}
 
-// =============================================
 // ALLOWED IMAGE TYPES: ONLY PNG AND JPEG
-// =============================================
 function isAllowedImage($file) {
     $allowed_types = ['image/png', 'image/jpeg', 'image/jpg'];
     $allowed_extensions = ['png', 'jpg', 'jpeg'];
     
-    // Check mime type
     $finfo = finfo_open(FILEINFO_MIME_TYPE);
     $mime_type = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
@@ -32,7 +33,6 @@ function isAllowedImage($file) {
         return false;
     }
     
-    // Check extension
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
     if (!in_array($extension, $allowed_extensions)) {
         return false;
@@ -52,7 +52,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $specialNote = trim($_POST['special_note'] ?? '');
         $imagePath = "";
 
-        // IMAGE UPLOAD - PNG/JPEG ONLY
         if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
             if (!isAllowedImage($_FILES['image'])) {
                 $message = "PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။";
@@ -194,6 +193,14 @@ if ($menu_result && $menu_result->num_rows > 0) {
         .image-preview.show {
             display: block;
         }
+
+        .modal-backdrop {
+            z-index: 1040 !important;
+        }
+        .modal {
+            z-index: 1055 !important;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
     </style>
 </head>
 <body>
@@ -292,10 +299,8 @@ if ($menu_result && $menu_result->num_rows > 0) {
     </div>
 </div>
 
-<!-- ============================================= -->
-<!-- ADD ITEM MODAL                                 -->
-<!-- ============================================= -->
-<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
+<!-- ADD ITEM MODAL -->
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0">
             <div class="modal-header bg-light border-0">
@@ -346,12 +351,10 @@ if ($menu_result && $menu_result->num_rows > 0) {
     </div>
 </div>
 
-<!-- ============================================= -->
-<!-- EDIT ITEM MODALS                              -->
-<!-- ============================================= -->
+<!-- EDIT ITEM MODALS -->
 <?php if (!empty($menu_items)): ?>
     <?php foreach ($menu_items as $item): ?>
-        <div class="modal fade" id="editModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true">
+        <div class="modal fade" id="editModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content rounded-4 border-0">
                     <div class="modal-header bg-light border-0">
