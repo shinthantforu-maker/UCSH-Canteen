@@ -18,34 +18,11 @@ $error_msg = "";
 
 
 // =============================================
-// FUNCTION: Generate Queue Number (Q + OrderID + Random 2 digits)
+// FUNCTION: Generate Queue Number from Order ID
 // =============================================
-function generateQueueNumber($conn) {
-    // ဝင်လာမည့် Order ID ကို Auto_increment မှ ယူမည်
-    $result = $conn->query("SHOW TABLE STATUS LIKE 'orders'");
-    $row = $result->fetch_assoc();
-    $nextId = $row['Auto_increment'] ?? 1;
-    
-    // Random ဂဏန်း ၂ လုံး ထုတ်မည် (10 မှ 99)
+function generateQueueNumberFromId($orderId) {
     $random = rand(10, 99);
-    
-    // Q + OrderID + Random2Digits (ဥပမာ- Order ID 14 ဆိုရင် Q1482)
-    $queueNumber = "Q" . $nextId . $random;
-    
-    // Database ထဲမှာ အကန့်အသတ်မရှိ တူနေခြင်း ရှိ/မရှိ စစ်မည်
-    $check = $conn->prepare("SELECT orderId FROM orders WHERE queue_number = ?");
-    $check->bind_param("s", $queueNumber);
-    $check->execute();
-    $check->store_result();
-    
-    // တူနေပါက ပြန်လည် ထုတ်ပေးမည်
-    if ($check->num_rows > 0) {
-        $check->close();
-        return generateQueueNumber($conn);
-    }
-    $check->close();
-    
-    return $queueNumber;
+    return "Q" . $orderId . $random;
 }
 
 
@@ -178,7 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     } elseif ($grandTotal <= 0) {
         $error_msg = "Cart ထဲတွင် ပစ္စည်းမရှိပါ။";
     } else {
-        $queueNumber = generateQueueNumber($conn);
+               // 1. Temporary Queue Number ဖြင့် အော်ဒါ အရင် Insert လုပ်မည်
+        $tempQueue = "Q_TEMP_" . microtime(true);
 
         // =============================================
         // ✅ INSERT ORDER with Delivery Columns
@@ -191,13 +169,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         $status = 'ordered';
         
         $stmt->bind_param("sisssiissidds", 
-    $queueNumber, $userId, $orderType, $pickupTime, $specialRequest, 
-    $totalAmt, $pointsUsed, $status, 
-    $deliveryAddress, $deliveryFee, $deliveryLat, $deliveryLng, $deliveryStatus
-);
+            $tempQueue, $userId, $orderType, $pickupTime, $specialRequest, 
+            $totalAmt, $pointsUsed, $status, 
+            $deliveryAddress, $deliveryFee, $deliveryLat, $deliveryLng, $deliveryStatus
+        );
+
         if ($stmt->execute()) {
             $orderId = $stmt->insert_id;
             $stmt->close();
+
+            // 2. ကျလာသော Order ID ကိုယူ၍ Q + OrderID + Random2Digits ဖွဲ့ပြီး Update လုပ်မည်
+            $queueNumber = "Q" . $orderId . rand(10, 99);
+            $updateQStmt = $conn->prepare("UPDATE orders SET queue_number = ? WHERE orderId = ?");
+            $updateQStmt->bind_param("si", $queueNumber, $orderId);
+            $updateQStmt->execute();
+            $updateQStmt->close();
+
 
             $itemStmt = $conn->prepare("INSERT INTO order_items (orderId, itemId, quantity, price) VALUES (?, ?, ?, ?)");
             foreach ($itemsToOrder as $item) {
