@@ -1,4 +1,8 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once '../db.php';
 
 if (!isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'admin') {
@@ -8,9 +12,6 @@ if (!isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'admin') {
 
 $message = "";
 $message_type = "";
-
-// Get all announcements
-$announcements = $conn->query("SELECT * FROM announcements ORDER BY announcementId DESC");
 
 // CRUD Operations
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -76,8 +77,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Refresh announcements after operation
+// Fetch announcements list
 $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcementId DESC");
+$announcements_list = [];
+if ($announcements && $announcements->num_rows > 0) {
+    while ($row = $announcements->fetch_assoc()) {
+        $announcements_list[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -99,6 +106,11 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
         .text-brand { color: var(--brand-color) !important; }
         .bg-brand { background-color: var(--brand-color) !important; }
         .announcement-item { border-left: 4px solid var(--brand-color); }
+
+        @media (max-width: 991.98px) { .sidebar { position: fixed; top: 0; left: -260px; z-index: 1050; transition: all 0.3s; } .sidebar.show { left: 0; } }
+
+        .modal-backdrop { z-index: 1040 !important; }
+        .modal { z-index: 1055 !important; background-color: rgba(0, 0, 0, 0.4); }
     </style>
 </head>
 <body>
@@ -111,7 +123,6 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
         <div class="nav flex-column mb-auto">
             <a href="admin.php" class="nav-link-custom"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
             <a href="menu.php" class="nav-link-custom"><i class="fa-solid fa-bowl-food"></i> Manage Menu</a>
-            <!-- <a href="orders.php" class="nav-link-custom"><i class="fa-solid fa-list-check"></i> Orders</a> -->
             <a href="users.php" class="nav-link-custom"><i class="fa-solid fa-users"></i> Users</a>
             <a href="announcements.php" class="nav-link-custom active"><i class="fa-solid fa-bullhorn"></i> Announcements</a>
         </div>
@@ -121,8 +132,13 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
 
     <div class="flex-grow-1 p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h4 class="fw-bold m-0 text-dark">Announcements Management</h4>
-            <span class="text-muted small">Total: <?= $announcements ? $announcements->num_rows : 0 ?></span>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-light d-lg-none border-0" type="button" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <i class="fa-solid fa-bars fs-5 text-dark"></i>
+                </button>
+                <h4 class="fw-bold m-0 text-dark">Announcements Management</h4>
+            </div>
+            <span class="text-muted small">Total: <?= count($announcements_list) ?></span>
         </div>
 
         <?php if (!empty($message)): ?>
@@ -155,8 +171,8 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
                 <div class="card border-0 shadow-sm rounded-4 p-4">
                     <h6 class="fw-bold mb-3 text-dark"><i class="fa-solid fa-list text-brand me-2"></i>အသိပေးချက်များ စာရင်း</h6>
                     
-                    <?php if ($announcements && $announcements->num_rows > 0): ?>
-                        <?php while ($ann = $announcements->fetch_assoc()): ?>
+                    <?php if (!empty($announcements_list)): ?>
+                        <?php foreach ($announcements_list as $ann): ?>
                             <div class="announcement-item p-3 mb-2 bg-white rounded-3 shadow-sm d-flex justify-content-between align-items-start">
                                 <div class="flex-grow-1 me-3">
                                     <h6 class="fw-bold text-dark mb-1"><?= htmlspecialchars($ann['title']) ?></h6>
@@ -170,7 +186,7 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
                                     </small>
                                 </div>
                                 <div class="d-flex gap-1 flex-shrink-0">
-                                    <button class="btn btn-sm btn-light border text-brand rounded-3" data-bs-toggle="modal" data-bs-target="#editModal<?= $ann['announcementId'] ?>" title="Edit">
+                                    <button type="button" class="btn btn-sm btn-light border text-brand rounded-3" data-bs-toggle="modal" data-bs-target="#editModal<?= $ann['announcementId'] ?>" title="Edit">
                                         <i class="fa-solid fa-pen"></i>
                                     </button>
                                     <form method="POST" action="announcements.php" class="d-inline" onsubmit="return confirm('ဒီအကြောင်းကြားချက်ကို ဖျက်ရန် သေချာပါသလား?');">
@@ -182,38 +198,7 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
                                     </form>
                                 </div>
                             </div>
-
-                            <!-- Edit Modal -->
-                            <div class="modal fade" id="editModal<?= $ann['announcementId'] ?>" tabindex="-1">
-                                <div class="modal-dialog modal-dialog-centered">
-                                    <div class="modal-content rounded-4 border-0">
-                                        <div class="modal-header bg-light border-0">
-                                            <h6 class="fw-bold m-0"><i class="fa-solid fa-pen text-brand me-2"></i>အသိပေးချက် ပြင်ဆင်ရန်</h6>
-                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                        </div>
-                                        <form method="POST" action="announcements.php">
-                                            <div class="modal-body p-4">
-                                                <input type="hidden" name="action" value="edit_announcement">
-                                                <input type="hidden" name="announcementId" value="<?= $ann['announcementId'] ?>">
-                                                <div class="mb-3">
-                                                    <label class="form-label small fw-bold">ခေါင်းစဉ်</label>
-                                                    <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($ann['title']) ?>" required>
-                                                </div>
-                                                <div class="mb-3">
-                                                    <label class="form-label small fw-bold">အသေးစိတ်</label>
-                                                    <textarea name="content" class="form-control" rows="4" required><?= htmlspecialchars($ann['content']) ?></textarea>
-                                                </div>
-                                            </div>
-                                            <div class="modal-footer border-0 bg-light">
-                                                <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">မလုပ်တော့ပါ</button>
-                                                <button type="submit" class="btn bg-brand text-white btn-sm rounded-3 fw-medium">သိမ်းဆည်းမည်</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            </div>
-
-                        <?php endwhile; ?>
+                        <?php endforeach; ?>
                     <?php else: ?>
                         <div class="text-center py-4 text-muted">
                             <i class="fa-regular fa-bell-slash fs-3 opacity-25 mb-2 d-block"></i>
@@ -225,6 +210,40 @@ $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcement
         </div>
     </div>
 </div>
+
+<!-- Edit Modals -->
+<?php if (!empty($announcements_list)): ?>
+    <?php foreach ($announcements_list as $ann): ?>
+        <div class="modal fade" id="editModal<?= $ann['announcementId'] ?>" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rounded-4 border-0">
+                    <div class="modal-header bg-light border-0">
+                        <h6 class="fw-bold m-0"><i class="fa-solid fa-pen text-brand me-2"></i>အသိပေးချက် ပြင်ဆင်ရန်</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="POST" action="announcements.php">
+                        <div class="modal-body p-4">
+                            <input type="hidden" name="action" value="edit_announcement">
+                            <input type="hidden" name="announcementId" value="<?= $ann['announcementId'] ?>">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">ခေါင်းစဉ်</label>
+                                <input type="text" name="title" class="form-control" value="<?= htmlspecialchars($ann['title']) ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">အသေးစိတ်</label>
+                                <textarea name="content" class="form-control" rows="4" required><?= htmlspecialchars($ann['content']) ?></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-0 bg-light">
+                            <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">မလုပ်တော့ပါ</button>
+                            <button type="submit" class="btn bg-brand text-white btn-sm rounded-3 fw-medium">သိမ်းဆည်းမည်</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+<?php endif; ?>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
