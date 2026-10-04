@@ -1,4 +1,8 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once '../db.php';
 
 if (!isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'admin') {
@@ -15,9 +19,6 @@ $conn->query("ALTER TABLE menu_items ADD COLUMN IF NOT EXISTS special_note VARCH
 // =============================================
 // ALLOWED IMAGE TYPES: ONLY PNG AND JPEG
 // =============================================
-$allowed_types = ['image/png', 'image/jpeg', 'image/jpg'];
-$allowed_extensions = ['png', 'jpg', 'jpeg'];
-
 function isAllowedImage($file) {
     $allowed_types = ['image/png', 'image/jpeg', 'image/jpg'];
     $allowed_extensions = ['png', 'jpg', 'jpeg'];
@@ -51,12 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $specialNote = trim($_POST['special_note'] ?? '');
         $imagePath = "";
 
-        // =============================================
         // IMAGE UPLOAD - PNG/JPEG ONLY
-        // =============================================
         if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
-            
-            // Check if allowed
             if (!isAllowedImage($_FILES['image'])) {
                 $message = "PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။";
                 $message_type = "danger";
@@ -75,15 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
         
-        // Only proceed if no error
         if (empty($message) || $message_type !== 'danger') {
             $stmt = $conn->prepare("INSERT INTO menu_items (itemName, category, points, isAvailable, image, special_note) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssdiss", $itemName, $category, $points, $isAvailable, $imagePath, $specialNote);
+            $stmt->bind_param("ssiiss", $itemName, $category, $points, $isAvailable, $imagePath, $specialNote);
             if ($stmt->execute()) {
                 $message = "Menu Item အသစ် '{$itemName}' ကို အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ။";
-                if (!empty($specialNote)) {
-                    $message .= " Special Note: " . htmlspecialchars($specialNote);
-                }
                 $message_type = "success";
             } else {
                 $message = "Menu Item ထည့်သွင်းရာတွင် အမှားအယွင်းရှိနေပါသည်။";
@@ -102,8 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $specialNote = trim($_POST['special_note'] ?? '');
 
         if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
-            
-            // Check if allowed
             if (!isAllowedImage($_FILES['image'])) {
                 $message = "PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။";
                 $message_type = "danger";
@@ -119,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if (move_uploaded_file($_FILES["image"]["tmp_name"], $targetFilePath)) {
                     $imagePath = "uploads/" . $fileName;
                     $stmt = $conn->prepare("UPDATE menu_items SET itemName = ?, category = ?, points = ?, isAvailable = ?, image = ?, special_note = ? WHERE itemId = ?");
-                    $stmt->bind_param("ssdissi", $itemName, $category, $points, $isAvailable, $imagePath, $specialNote, $itemId);
+                    $stmt->bind_param("ssiissi", $itemName, $category, $points, $isAvailable, $imagePath, $specialNote, $itemId);
                     if ($stmt->execute()) {
                         $message = "Menu Item ကို ပြင်ဆင်ပြီးပါပြီ။";
                         $message_type = "success";
@@ -129,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         } else {
             $stmt = $conn->prepare("UPDATE menu_items SET itemName = ?, category = ?, points = ?, isAvailable = ?, special_note = ? WHERE itemId = ?");
-            $stmt->bind_param("ssdssi", $itemName, $category, $points, $isAvailable, $specialNote, $itemId);
+            $stmt->bind_param("ssiisi", $itemName, $category, $points, $isAvailable, $specialNote, $itemId);
             if ($stmt->execute()) {
                 $message = "Menu Item ကို ပြင်ဆင်ပြီးပါပြီ။";
                 $message_type = "success";
@@ -161,7 +152,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
+// Fetch Menu Items
 $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
+$menu_items = [];
+if ($menu_result && $menu_result->num_rows > 0) {
+    while ($row = $menu_result->fetch_assoc()) {
+        $menu_items[] = $row;
+    }
+}
 ?>
 
 <!DOCTYPE html>
@@ -185,7 +183,6 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
         .menu-img-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; }
         @media (max-width: 991.98px) { .sidebar { position: fixed; top: 0; left: -260px; z-index: 1050; } .sidebar.show { left: 0; } }
         
-        /* Image upload preview */
         .image-preview {
             max-width: 150px;
             max-height: 150px;
@@ -209,7 +206,6 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
         <div class="nav flex-column mb-auto">
             <a href="admin.php" class="nav-link-custom"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
             <a href="menu.php" class="nav-link-custom active"><i class="fa-solid fa-bowl-food"></i> Manage Menu</a>
-            <!-- <a href="orders.php" class="nav-link-custom"><i class="fa-solid fa-list-check"></i> Orders</a> -->
             <a href="users.php" class="nav-link-custom"><i class="fa-solid fa-users"></i> Users</a>
             <a href="announcements.php" class="nav-link-custom"><i class="fa-solid fa-bullhorn"></i> Announcements</a>
         </div>
@@ -217,13 +213,13 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
         <div><a href="../logout.php" class="nav-link-custom text-danger"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></div>
     </div>
 
-    <div class="flex-grow-1 p-3 p-md-4 overflow-hidden">
+    <div class="flex-grow-1 p-3 p-md-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <button class="btn btn-light d-lg-none border-0" type="button" onclick="document.getElementById('sidebar').classList.toggle('show')">
                 <i class="fa-solid fa-bars fs-5 text-dark"></i>
             </button>
             <h4 class="fw-bold m-0 text-dark">Menu Management</h4>
-            <button class="btn bg-brand text-white rounded-3 fw-medium" data-bs-toggle="modal" data-bs-target="#addItemModal">
+            <button type="button" class="btn bg-brand text-white rounded-3 fw-medium" data-bs-toggle="modal" data-bs-target="#addItemModal">
                 <i class="fa-solid fa-plus me-1"></i> Menu အသစ်ထည့်မည်
             </button>
         </div>
@@ -253,8 +249,8 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($menu_result && $menu_result->num_rows > 0): ?>
-                            <?php while ($item = $menu_result->fetch_assoc()): ?>
+                        <?php if (!empty($menu_items)): ?>
+                            <?php foreach ($menu_items as $item): ?>
                                 <tr>
                                     <td><img src="<?= !empty($item['image']) ? '../' . htmlspecialchars($item['image']) : 'https://via.placeholder.com/50' ?>" class="menu-img-preview border" alt="Menu"></td>
                                     <td class="fw-medium text-dark"><?= htmlspecialchars($item['itemName']) ?></td>
@@ -273,7 +269,7 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
                                         </form>
                                     </td>
                                     <td class="text-center">
-                                        <button class="btn btn-sm btn-light border text-brand me-1 rounded-3" data-bs-toggle="modal" data-bs-target="#editModal<?= $item['itemId'] ?>">
+                                        <button type="button" class="btn btn-sm btn-light border text-brand me-1 rounded-3" data-bs-toggle="modal" data-bs-target="#editModal<?= $item['itemId'] ?>">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </button>
                                         <form method="POST" action="menu.php" class="d-inline" onsubmit="return confirm('ဒီ Menu Item ကို ဖျက်ရန် သေချာပါသလား?');">
@@ -285,61 +281,7 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
                                         </form>
                                     </td>
                                 </tr>
-
-                                <!-- Edit Modal -->
-                                <div class="modal fade" id="editModal<?= $item['itemId'] ?>" tabindex="-1">
-                                    <div class="modal-dialog modal-dialog-centered">
-                                        <div class="modal-content rounded-4 border-0">
-                                            <div class="modal-header bg-light border-0">
-                                                <h6 class="fw-bold m-0"><i class="fa-solid fa-pen-to-square text-brand me-2"></i>Menu Item ပြင်ဆင်ရန်</h6>
-                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                            </div>
-                                            <form method="POST" action="menu.php" enctype="multipart/form-data">
-                                                <div class="modal-body p-4">
-                                                    <input type="hidden" name="action" value="edit_item">
-                                                    <input type="hidden" name="itemId" value="<?= $item['itemId'] ?>">
-                                                    <div class="mb-3">
-                                                        <label class="form-label small fw-bold">Item နာမည်</label>
-                                                        <input type="text" name="itemName" class="form-control" value="<?= htmlspecialchars($item['itemName']) ?>" required>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label small fw-bold">Category</label>
-                                                        <select name="category" class="form-select">
-                                                            <option value="Food" <?= $item['category'] === 'Food' ? 'selected' : '' ?>>Food</option>
-                                                            <option value="Drink" <?= $item['category'] === 'Drink' ? 'selected' : '' ?>>Drink</option>
-                                                            <option value="Snack" <?= $item['category'] === 'Snack' ? 'selected' : '' ?>>Snack</option>
-                                                        </select>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label small fw-bold">Points</label>
-                                                        <input type="number" name="points" class="form-control" value="<?= $item['points'] ?>" required min="1">
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label small fw-bold">Special Note (တစ်ခုခုမှာလို့ရအောင်)</label>
-                                                        <input type="text" name="special_note" class="form-control" value="<?= htmlspecialchars($item['special_note'] ?? '') ?>" placeholder="ဥပမာ - ဆားနည်းနည်းလျှော့ပေးပါ...">
-                                                        <small class="text-muted">Customer က ဒီမှာရေးထားတဲ့အတိုင်း မှာလို့ရပါတယ်</small>
-                                                    </div>
-                                                    <div class="mb-3">
-                                                        <label class="form-label small fw-bold">ဓာတ်ပုံ (အသစ်လဲလိုပါက) <span class="text-danger">*PNG သို့မဟုတ် JPEG သာ</span></label>
-                                                        <input type="file" name="image" class="form-control" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewImage(this, 'editPreview<?= $item['itemId'] ?>')">
-                                                        <img id="editPreview<?= $item['itemId'] ?>" class="image-preview mt-2" src="#" alt="Preview">
-                                                        <small class="text-muted d-block">PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။</small>
-                                                    </div>
-                                                    <div class="form-check form-switch mb-2">
-                                                        <input class="form-check-input" type="checkbox" name="isAvailable" id="avail<?= $item['itemId'] ?>" <?= $item['isAvailable'] ? 'checked' : '' ?>>
-                                                        <label class="form-check-label small fw-bold" for="avail<?= $item['itemId'] ?>">In Stock</label>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer border-0 bg-light">
-                                                    <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">မလုပ်တော့ပါ</button>
-                                                    <button type="submit" class="btn bg-brand text-white btn-sm rounded-3 fw-medium">သိမ်းဆည်းမည်</button>
-                                                </div>
-                                            </form>
-                                        </div>
-                                    </div>
-                                </div>
-
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <tr><td colspan="7" class="text-center py-4 text-muted">Menu Item များ မရှိသေးပါ။</td></tr>
                         <?php endif; ?>
@@ -351,9 +293,9 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
 </div>
 
 <!-- ============================================= -->
-<!-- ADD ITEM MODAL - PNG/JPEG ONLY                -->
+<!-- ADD ITEM MODAL                                 -->
 <!-- ============================================= -->
-<div class="modal fade" id="addItemModal" tabindex="-1">
+<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0">
             <div class="modal-header bg-light border-0">
@@ -404,10 +346,67 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
     </div>
 </div>
 
+<!-- ============================================= -->
+<!-- EDIT ITEM MODALS                              -->
+<!-- ============================================= -->
+<?php if (!empty($menu_items)): ?>
+    <?php foreach ($menu_items as $item): ?>
+        <div class="modal fade" id="editModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content rounded-4 border-0">
+                    <div class="modal-header bg-light border-0">
+                        <h6 class="fw-bold m-0"><i class="fa-solid fa-pen-to-square text-brand me-2"></i>Menu Item ပြင်ဆင်ရန်</h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <form method="POST" action="menu.php" enctype="multipart/form-data">
+                        <div class="modal-body p-4">
+                            <input type="hidden" name="action" value="edit_item">
+                            <input type="hidden" name="itemId" value="<?= $item['itemId'] ?>">
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Item နာမည်</label>
+                                <input type="text" name="itemName" class="form-control" value="<?= htmlspecialchars($item['itemName']) ?>" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Category</label>
+                                <select name="category" class="form-select">
+                                    <option value="Food" <?= $item['category'] === 'Food' ? 'selected' : '' ?>>Food</option>
+                                    <option value="Drink" <?= $item['category'] === 'Drink' ? 'selected' : '' ?>>Drink</option>
+                                    <option value="Snack" <?= $item['category'] === 'Snack' ? 'selected' : '' ?>>Snack</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Points</label>
+                                <input type="number" name="points" class="form-control" value="<?= $item['points'] ?>" required min="1">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Special Note (တစ်ခုခုမှာလို့ရအောင်)</label>
+                                <input type="text" name="special_note" class="form-control" value="<?= htmlspecialchars($item['special_note'] ?? '') ?>" placeholder="ဥပမာ - ဆားနည်းနည်းလျှော့ပေးပါ...">
+                                <small class="text-muted">Customer က ဒီမှာရေးထားတဲ့အတိုင်း မှာလို့ရပါတယ်</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">ဓာတ်ပုံ (အသစ်လဲလိုပါက) <span class="text-danger">*PNG သို့မဟုတ် JPEG သာ</span></label>
+                                <input type="file" name="image" class="form-control" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewImage(this, 'editPreview<?= $item['itemId'] ?>')">
+                                <img id="editPreview<?= $item['itemId'] ?>" class="image-preview mt-2" src="#" alt="Preview">
+                                <small class="text-muted d-block">PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။</small>
+                            </div>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" name="isAvailable" id="avail<?= $item['itemId'] ?>" <?= $item['isAvailable'] ? 'checked' : '' ?>>
+                                <label class="form-check-label small fw-bold" for="avail<?= $item['itemId'] ?>">In Stock</label>
+                            </div>
+                        </div>
+                        <div class="modal-footer border-0 bg-light">
+                            <button type="button" class="btn btn-secondary btn-sm rounded-3" data-bs-dismiss="modal">မလုပ်တော့ပါ</button>
+                            <button type="submit" class="btn bg-brand text-white btn-sm rounded-3 fw-medium">သိမ်းဆည်းမည်</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-// =============================================
-// IMAGE PREVIEW FUNCTION
-// =============================================
 function previewImage(input, previewId) {
     var preview = document.getElementById(previewId);
     if (input.files && input.files[0]) {
@@ -423,9 +422,6 @@ function previewImage(input, previewId) {
     }
 }
 
-// =============================================
-// FORM VALIDATION - Check file type before submit
-// =============================================
 document.getElementById('addItemForm')?.addEventListener('submit', function(e) {
     var fileInput = document.getElementById('imageInput');
     if (fileInput && fileInput.files && fileInput.files[0]) {
@@ -449,7 +445,5 @@ document.getElementById('addItemForm')?.addEventListener('submit', function(e) {
     return true;
 });
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
