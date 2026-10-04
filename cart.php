@@ -155,8 +155,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     } elseif ($grandTotal <= 0) {
         $error_msg = "Cart ထဲတွင် ပစ္စည်းမရှိပါ။";
     } else {
-               // 1. Temporary Queue Number ဖြင့် အော်ဒါ အရင် Insert လုပ်မည်
-        $tempQueue = "Q_TEMP_" . microtime(true);
+               // 1. Tmporary Queue Number ဖြင့် အော်ဒါ အရင် Insert လုပ်မည်
+        $tempQueue = "Q000";
 
         // =============================================
         // ✅ INSERT ORDER with Delivery Columns
