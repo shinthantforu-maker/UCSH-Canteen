@@ -1,12 +1,14 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 require_once 'db.php';
 header('Content-Type: application/json');
 
-// ============================================================
-// 1. TRACK ORDER - NO AUTH REQUIRED (GUEST CAN TRACK)
-// ============================================================
 $action = $_GET['action'] ?? '';
 
+// 1. TRACK ORDER - NO AUTH REQUIRED (GUEST CAN TRACK)
 if ($action === 'track_order' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $queueNumber = trim($_POST['queue'] ?? '');
     
@@ -30,9 +32,7 @@ if ($action === 'track_order' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-// ============================================================
 // 2. ALL OTHER ACTIONS - AUTH REQUIRED
-// ============================================================
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
     exit();
@@ -40,7 +40,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// 2. Toggle Like
+// Toggle Like
 if ($action === 'toggle_like' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemId = intval($_POST['itemId'] ?? 0);
     
@@ -68,7 +68,7 @@ if ($action === 'toggle_like' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
-// 3. Add to Cart
+// Add to Cart
 if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemId = intval($_POST['itemId'] ?? 0);
     $qty = intval($_POST['quantity'] ?? 1);
@@ -87,32 +87,6 @@ if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 
-
-    // In api.php - track_order section
-// In api.php - track_order section
-if ($action === 'track_order' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $queueNumber = trim($_POST['queue'] ?? '');
-    
-    if (empty($queueNumber)) {
-        echo json_encode(['status' => 'error', 'message' => 'Queue number is required.']);
-        exit();
-    }
-
-    // SELECT specialRequest ပါ
-    $stmt = $conn->prepare("SELECT orderId, queue_number, status, pickupTime, orderType, totalAmount, points_used, specialRequest, rejectionReason, createdAt FROM orders WHERE queue_number = ?");
-    $stmt->bind_param("s", $queueNumber);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        $order = $result->fetch_assoc();
-        echo json_encode(['status' => 'success', 'order' => $order]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Order not found.']);
-    }
-    $stmt->close();
-    exit();
-}
     // Get user points
     $userStmt = $conn->prepare("SELECT points FROM users WHERE userId = ?");
     $userStmt->bind_param("i", $user_id);
