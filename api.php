@@ -2,13 +2,14 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
 require_once 'db.php';
 header('Content-Type: application/json');
 
 $action = $_GET['action'] ?? '';
 
+// ============================================================
 // 1. TRACK ORDER - NO AUTH REQUIRED (GUEST CAN TRACK)
+// ============================================================
 if ($action === 'track_order' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $queueNumber = trim($_POST['queue'] ?? '');
     
@@ -32,7 +33,9 @@ if ($action === 'track_order' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
 }
 
+// ============================================================
 // 2. ALL OTHER ACTIONS - AUTH REQUIRED
+// ============================================================
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
     exit();
@@ -40,7 +43,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// Toggle Like
+// 2. Toggle Like
 if ($action === 'toggle_like' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemId = intval($_POST['itemId'] ?? 0);
     
@@ -62,13 +65,13 @@ if ($action === 'toggle_like' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $countRes = $conn->query("SELECT COUNT(*) as count FROM liked_items WHERE userId = $user_id");
-    $likeCount = $countRes->fetch_assoc()['count'];
+    $likeCount = $countRes->fetch_assoc()['count'] ?? 0;
 
     echo json_encode(['status' => 'success', 'liked' => $liked, 'likeCount' => $likeCount]);
     exit();
 }
 
-// Add to Cart
+// 3. Add to Cart
 if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $itemId = intval($_POST['itemId'] ?? 0);
     $qty = intval($_POST['quantity'] ?? 1);
