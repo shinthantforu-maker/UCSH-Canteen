@@ -16,29 +16,38 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $error_msg = "";
 
+
 // =============================================
-// FUNCTION: Generate Short Unique Queue Number
+// FUNCTION: Generate Queue Number (Q + OrderID + Random 2 digits)
 // =============================================
 function generateQueueNumber($conn) {
+    // ဝင်လာမည့် Order ID ကို Auto_increment မှ ယူမည်
     $result = $conn->query("SHOW TABLE STATUS LIKE 'orders'");
     $row = $result->fetch_assoc();
     $nextId = $row['Auto_increment'] ?? 1;
     
-    $random = str_pad(rand(10, 99), 2, '0', STR_PAD_LEFT);
+    // Random ဂဏန်း ၂ လုံး ထုတ်မည် (10 မှ 99)
+    $random = rand(10, 99);
+    
+    // Q + OrderID + Random2Digits (ဥပမာ- Order ID 14 ဆိုရင် Q1482)
     $queueNumber = "Q" . $nextId . $random;
     
+    // Database ထဲမှာ အကန့်အသတ်မရှိ တူနေခြင်း ရှိ/မရှိ စစ်မည်
     $check = $conn->prepare("SELECT orderId FROM orders WHERE queue_number = ?");
     $check->bind_param("s", $queueNumber);
     $check->execute();
     $check->store_result();
     
+    // တူနေပါက ပြန်လည် ထုတ်ပေးမည်
     if ($check->num_rows > 0) {
         $check->close();
         return generateQueueNumber($conn);
     }
     $check->close();
+    
     return $queueNumber;
 }
+
 
 // Get User Points
 $userStmt = $conn->prepare("SELECT points FROM users WHERE userId = ?");
