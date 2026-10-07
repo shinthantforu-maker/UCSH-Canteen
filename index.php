@@ -64,8 +64,7 @@ $menu_query = "SELECT m.*,
                (SELECT AVG(rating) FROM ratings WHERE itemId = m.itemId) as avg_rating,
                (SELECT COUNT(*) FROM ratings WHERE itemId = m.itemId) as rating_count
                FROM menu_items m 
-               WHERE m.isAvailable = 1 
-               ORDER BY m.itemId DESC";
+               ORDER BY m.isAvailable DESC, m.itemId DESC";
 
 $menu_items = $conn->query($menu_query); 
 
@@ -273,10 +272,68 @@ if ($showVoucher) {
             min-height: 28px;
         }
 
-        .menu-card .rating-box {
-            min-height: 20px;
-            margin-bottom: 8px;
-        }
+      /* ============================================= */
+/* 🔴 OUT OF STOCK OVERLAY                        */
+/* ============================================= */
+.menu-card.out-of-stock {
+    position: relative;
+}
+
+.menu-card.out-of-stock .menu-card-img {
+    filter: grayscale(50%) brightness(0.85);
+}
+
+.menu-card.out-of-stock .stock-overlay {
+    display: flex;
+}
+
+.stock-overlay {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 35%;
+    bottom: 0;
+    background: linear-gradient(180deg, 
+        rgba(220, 38, 38, 0) 0%, 
+        rgba(220, 38, 38, 0.35) 25%,
+        rgba(220, 38, 38, 0.75) 55%, 
+        rgba(185, 28, 28, 0.98) 100%);
+    z-index: 5;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 80px;
+    pointer-events: none;
+    border-radius: 0 0 20px 20px;
+}
+
+.stock-overlay-text {
+    color: #FFFFFF;
+    font-weight: 800;
+    font-size: clamp(1.1rem, 2.8vw, 1.5rem);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+    animation: stockPulse 2s ease-in-out infinite;
+}
+
+@keyframes stockPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.03); }
+}
+
+.menu-card.out-of-stock .btn-out-of-stock {
+    background: #6B7280 !important;
+    color: #FFFFFF !important;
+    cursor: not-allowed !important;
+    opacity: 1 !important;
+    border: none;
+}
+
+.menu-card.out-of-stock .btn-out-of-stock:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
 
         .like-btn {
             background: rgba(255, 255, 255, 0.85);
@@ -1173,18 +1230,19 @@ if ($showVoucher) {
         <?php if ($menu_items && $menu_items->num_rows > 0): ?>
             <?php while ($item = $menu_items->fetch_assoc()): ?>
                 
-                <?php 
-                    $imgPath = 'https://via.placeholder.com/300x200?text=No+Image';
-                    if (!empty($item['image'])) {
-                        if (file_exists($item['image'])) {
-                            $imgPath = $item['image'];
-                        } elseif (file_exists('uploads/' . basename($item['image']))) {
-                            $imgPath = 'uploads/' . basename($item['image']);
-                        }
-                    }
+             <?php 
+    $imgPath = 'https://via.placeholder.com/300x200?text=No+Image';
+    if (!empty($item['image'])) {
+        if (file_exists($item['image'])) {
+            $imgPath = $item['image'];
+        } elseif (file_exists('uploads/' . basename($item['image']))) {
+            $imgPath = 'uploads/' . basename($item['image']);
+        }
+    }
 
-                    $is_liked = in_array($item['itemId'], $user_liked_item_ids);
-                ?>
+    $is_liked = in_array($item['itemId'], $user_liked_item_ids);
+    $is_out = ($item['isAvailable'] == 0);
+?>
 
                 <div class="col-6 col-sm-6 col-md-4 col-lg-3 menu-item-card" 
                      data-name="<?= htmlspecialchars(mb_strtolower($item['itemName'], 'UTF-8')) ?>"
