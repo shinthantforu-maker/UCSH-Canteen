@@ -471,8 +471,8 @@ if ($isAjax) {
 
         <!-- Stats -->
         <div class="row g-3 mb-4">
-            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7-Day Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
-            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
+            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7 ရက်အတွင်းရောင်းရသော points </div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
+            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 ယနေ့ရောင်းရသော Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">Active Orders</div><div class="stat-number text-dark" data-stat="activeOrders"><?= $activeOrders ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">Top Seller</div><div class="stat-number fs-3 text-dark text-truncate" data-stat="topSeller"><?= htmlspecialchars($topSeller) ?></div></div></div>
         </div>
