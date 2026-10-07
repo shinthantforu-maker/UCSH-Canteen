@@ -106,32 +106,36 @@ $destLat = $order['dest_lat'] ?? $canteenLat;
 $destLng = $order['dest_lng'] ?? $canteenLng;
 
 // =============================================
-// ✅ 7 DELIVERY LOCATIONS WITH ROAD-BASED WAYPOINTS
+// ✅ WAYPOINTS - REAL ROAD-BASED PATHS
 // =============================================
 $delivery_locations_map = [
     'ပင်မစာသင်ဆောင်' => [
         'lat' => 16.836874, 'lng' => 97.596156,
         'waypoints' => [
-            [16.8378531, 97.5987163], // Canteen (Start)
-            [16.8378000, 97.5985000], // Follow road
-            [16.8376000, 97.5982000],
-            [16.8374000, 97.5978000],
-            [16.8372000, 97.5974000],
-            [16.8370000, 97.5970000],
-            [16.8369000, 97.5965000],
-            [16.836874, 97.596156]  // Destination
+            [16.8378531, 97.5987163],
+            [16.8377900, 97.5985500],
+            [16.8376800, 97.5983500],
+            [16.8375500, 97.5980500],
+            [16.8374200, 97.5977500],
+            [16.8372800, 97.5974000],
+            [16.8371500, 97.5971000],
+            [16.8370200, 97.5968000],
+            [16.8369200, 97.5964000],
+            [16.836874, 97.596156]
         ]
     ],
     'ပင်မစာသင်ဆောင် (Lobby)' => [
         'lat' => 16.836874, 'lng' => 97.596156,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8378000, 97.5985000],
-            [16.8376000, 97.5982000],
-            [16.8374000, 97.5978000],
-            [16.8372000, 97.5974000],
-            [16.8370000, 97.5970000],
-            [16.8369000, 97.5965000],
+            [16.8377900, 97.5985500],
+            [16.8376800, 97.5983500],
+            [16.8375500, 97.5980500],
+            [16.8374200, 97.5977500],
+            [16.8372800, 97.5974000],
+            [16.8371500, 97.5971000],
+            [16.8370200, 97.5968000],
+            [16.8369200, 97.5964000],
             [16.836874, 97.596156]
         ]
     ],
@@ -139,10 +143,13 @@ $delivery_locations_map = [
         'lat' => 16.837771, 'lng' => 97.599861,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8378500, 97.5990000],
-            [16.8378300, 97.5993000],
-            [16.8378100, 97.5995000],
-            [16.8377900, 97.5997000],
+            [16.8378500, 97.5988500],
+            [16.8378450, 97.5990000],
+            [16.8378350, 97.5991500],
+            [16.8378200, 97.5993000],
+            [16.8378050, 97.5995000],
+            [16.8377900, 97.5996500],
+            [16.8377800, 97.5997500],
             [16.837771, 97.599861]
         ]
     ],
@@ -150,9 +157,11 @@ $delivery_locations_map = [
         'lat' => 16.837603, 'lng' => 97.599519,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8378000, 97.5989000],
-            [16.8377000, 97.5991000],
-            [16.8376500, 97.5993000],
+            [16.8378400, 97.5988000],
+            [16.8377900, 97.5989000],
+            [16.8377300, 97.5990000],
+            [16.8376900, 97.5991500],
+            [16.8376600, 97.5993000],
             [16.837603, 97.599519]
         ]
     ],
@@ -160,10 +169,13 @@ $delivery_locations_map = [
         'lat' => 16.838378, 'lng' => 97.598966,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8379000, 97.5987500],
-            [16.8380000, 97.5988000],
-            [16.8381000, 97.5988500],
-            [16.8382000, 97.5989000],
+            [16.8378900, 97.5987500],
+            [16.8379500, 97.5987800],
+            [16.8380100, 97.5988100],
+            [16.8380800, 97.5988500],
+            [16.8381500, 97.5988900],
+            [16.8382200, 97.5989200],
+            [16.8383000, 97.5989400],
             [16.838378, 97.598966]
         ]
     ],
@@ -171,10 +183,13 @@ $delivery_locations_map = [
         'lat' => 16.838183, 'lng' => 97.599650,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8379000, 97.5989000],
-            [16.8379500, 97.5991000],
-            [16.8380000, 97.5993000],
-            [16.8381000, 97.5995000],
+            [16.8378800, 97.5988500],
+            [16.8379100, 97.5990000],
+            [16.8379400, 97.5991500],
+            [16.8379800, 97.5993000],
+            [16.8380300, 97.5994200],
+            [16.8380900, 97.5995300],
+            [16.8381400, 97.5996000],
             [16.838183, 97.599650]
         ]
     ],
@@ -182,10 +197,13 @@ $delivery_locations_map = [
         'lat' => 16.838698, 'lng' => 97.599426,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8379000, 97.5989000],
+            [16.8378800, 97.5988500],
+            [16.8379300, 97.5990000],
             [16.8380000, 97.5991000],
-            [16.8382000, 97.5993000],
-            [16.8384000, 97.5994000],
+            [16.8381000, 97.5992000],
+            [16.8382200, 97.5992800],
+            [16.8383500, 97.5993400],
+            [16.8385000, 97.5993800],
             [16.838698, 97.599426]
         ]
     ],
@@ -193,10 +211,13 @@ $delivery_locations_map = [
         'lat' => 16.837771, 'lng' => 97.599861,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8378500, 97.5990000],
-            [16.8378300, 97.5993000],
-            [16.8378100, 97.5995000],
-            [16.8377900, 97.5997000],
+            [16.8378500, 97.5988500],
+            [16.8378450, 97.5990000],
+            [16.8378350, 97.5991500],
+            [16.8378200, 97.5993000],
+            [16.8378050, 97.5995000],
+            [16.8377900, 97.5996500],
+            [16.8377800, 97.5997500],
             [16.837771, 97.599861]
         ]
     ],
@@ -204,10 +225,13 @@ $delivery_locations_map = [
         'lat' => 16.838183, 'lng' => 97.599650,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8379000, 97.5989000],
-            [16.8379500, 97.5991000],
-            [16.8380000, 97.5993000],
-            [16.8381000, 97.5995000],
+            [16.8378800, 97.5988500],
+            [16.8379100, 97.5990000],
+            [16.8379400, 97.5991500],
+            [16.8379800, 97.5993000],
+            [16.8380300, 97.5994200],
+            [16.8380900, 97.5995300],
+            [16.8381400, 97.5996000],
             [16.838183, 97.599650]
         ]
     ]
@@ -220,13 +244,15 @@ $waypoints = [];
 if (isset($delivery_locations_map[$deliveryAddr])) {
     $waypoints = $delivery_locations_map[$deliveryAddr]['waypoints'];
 } else {
-    // Default: 6 intermediate points
+    // Default: 8 intermediate points
     $waypoints = [
         [$canteenLat, $canteenLng],
-        [$canteenLat + ($destLat - $canteenLat) * 0.2, $canteenLng + ($destLng - $canteenLng) * 0.2],
-        [$canteenLat + ($destLat - $canteenLat) * 0.4, $canteenLng + ($destLng - $canteenLng) * 0.4],
-        [$canteenLat + ($destLat - $canteenLat) * 0.6, $canteenLng + ($destLng - $canteenLng) * 0.6],
-        [$canteenLat + ($destLat - $canteenLat) * 0.8, $canteenLng + ($destLng - $canteenLng) * 0.8],
+        [$canteenLat + ($destLat - $canteenLat) * 0.15, $canteenLng + ($destLng - $canteenLng) * 0.15],
+        [$canteenLat + ($destLat - $canteenLat) * 0.30, $canteenLng + ($destLng - $canteenLng) * 0.30],
+        [$canteenLat + ($destLat - $canteenLat) * 0.45, $canteenLng + ($destLng - $canteenLng) * 0.45],
+        [$canteenLat + ($destLat - $canteenLat) * 0.60, $canteenLng + ($destLng - $canteenLng) * 0.60],
+        [$canteenLat + ($destLat - $canteenLat) * 0.75, $canteenLng + ($destLng - $canteenLng) * 0.75],
+        [$canteenLat + ($destLat - $canteenLat) * 0.90, $canteenLng + ($destLng - $canteenLng) * 0.90],
         [$destLat, $destLng]
     ];
 }
@@ -253,16 +279,23 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             --brand-hover: #17939F; 
             --brand-light: #EBF8F9; 
         }
+        * { box-sizing: border-box; }
         body { 
             font-family: 'Plus Jakarta Sans', 'Noto Sans Myanmar', sans-serif; 
             background: #F8FAFC; 
             color: #1E293B; 
             overflow-x: hidden;
+            margin: 0;
+            padding: 0;
         }
+        
         .text-brand { color: var(--brand-color) !important; }
         .bg-brand { background-color: var(--brand-color) !important; }
         .bg-brand-light { background-color: var(--brand-light) !important; }
         
+        /* ============================================= */
+        /* 📱 RESPONSIVE NAVBAR                           */
+        /* ============================================= */
         .navbar-custom {
             background-color: #FFFFFF;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
@@ -300,8 +333,11 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             border: 1px solid #fcd34d;
         }
         
+        /* ============================================= */
+        /* 🗺️ MAP                                         */
+        /* ============================================= */
         #trackingMap {
-            height: clamp(300px, 50vh, 500px);
+            height: clamp(280px, 45vh, 480px);
             width: 100%;
             border-radius: clamp(12px, 2vw, 20px);
             overflow: hidden;
@@ -309,6 +345,9 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             z-index: 1;
         }
         
+        /* ============================================= */
+        /* 📦 DELIVERY STATUS CARD                        */
+        /* ============================================= */
         .delivery-status-card {
             background: white;
             border-radius: clamp(12px, 2vw, 20px);
@@ -345,15 +384,15 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         }
         
         .status-icon {
-            width: clamp(32px, 5vw, 40px);
-            height: clamp(32px, 5vw, 40px);
+            width: clamp(30px, 5vw, 40px);
+            height: clamp(30px, 5vw, 40px);
             border-radius: 50%;
             background: #E2E8F0;
             color: #94A3B8;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: clamp(12px, 1.8vw, 16px);
+            font-size: clamp(11px, 1.8vw, 16px);
             transition: all 0.4s ease;
             margin: 0 auto;
         }
@@ -377,7 +416,7 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         }
         
         .status-label {
-            font-size: clamp(0.6rem, 1.5vw, 0.7rem);
+            font-size: clamp(0.55rem, 1.4vw, 0.7rem);
             color: #64748B;
             margin-top: 6px;
             font-weight: 500;
@@ -389,10 +428,13 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         .status-step.active .status-label { color: var(--brand-color); font-weight: 700; }
         .status-step.completed .status-label { color: #28a745; font-weight: 600; }
         
+        /* ============================================= */
+        /* 🛵 BIKE ICON WITH DIRECTION                    */
+        /* ============================================= */
         .bike-icon-wrapper {
             position: relative;
-            width: 60px;
-            height: 60px;
+            width: clamp(44px, 8vw, 60px);
+            height: clamp(44px, 8vw, 60px);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -401,13 +443,13 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         .bike-icon {
             background: #FFC107;
             color: white;
-            width: 60px;
-            height: 60px;
+            width: 100%;
+            height: 100%;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 28px;
+            font-size: clamp(20px, 4vw, 28px);
             box-shadow: 0 6px 20px rgba(255, 193, 7, 0.8);
             border: 3px solid white;
             position: relative;
@@ -428,6 +470,9 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             100% { transform: scale(1.5); opacity: 0; }
         }
         
+        /* ============================================= */
+        /* ⏱️ ETA BOX                                     */
+        /* ============================================= */
         .eta-box {
             background: linear-gradient(135deg, #1EAFBD 0%, #0F5860 100%);
             color: white;
@@ -447,6 +492,9 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             font-size: clamp(0.65rem, 1.5vw, 0.75rem);
         }
         
+        /* ============================================= */
+        /* 📋 INFO CARD                                   */
+        /* ============================================= */
         .delivery-info-card {
             background: white;
             border-radius: clamp(12px, 2vw, 16px);
@@ -454,19 +502,26 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
         
-        /* ✅ RECEIVED BUTTON - ONLY WHEN DELIVERED */
+        /* ============================================= */
+        /* ✅ RECEIVED BUTTON - RESPONSIVE                */
+        /* ============================================= */
         .btn-received {
             background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
             color: white;
             border: none;
-            padding: 14px 24px;
-            border-radius: 12px;
+            padding: clamp(12px, 2vw, 16px) clamp(16px, 3vw, 24px);
+            border-radius: clamp(10px, 2vw, 14px);
             font-weight: 700;
-            font-size: 1rem;
+            font-size: clamp(0.85rem, 2vw, 1rem);
             width: 100%;
             box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
             transition: all 0.3s ease;
             animation: receivedPulse 2s infinite;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
         }
         
         .btn-received:hover {
@@ -474,11 +529,16 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             box-shadow: 0 10px 30px rgba(40, 167, 69, 0.6);
         }
         
+        .btn-received:active {
+            transform: translateY(0);
+        }
+        
         .btn-received:disabled {
             background: #6c757d;
             cursor: not-allowed;
             animation: none;
             box-shadow: none;
+            transform: none;
         }
         
         @keyframes receivedPulse {
@@ -486,13 +546,66 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             50% { box-shadow: 0 6px 30px rgba(40, 167, 69, 0.8); }
         }
         
+        /* ============================================= */
+        /* ⏳ WAITING BOX                                 */
+        /* ============================================= */
+        .waiting-box {
+            background: linear-gradient(135deg, #EBF8F9 0%, #FFFFFF 100%);
+            border: 2px dashed #1EAFBD;
+            border-radius: clamp(12px, 2vw, 16px);
+            padding: clamp(14px, 2vw, 18px);
+            text-align: center;
+        }
+        
+        .waiting-box i {
+            font-size: clamp(1.5rem, 3vw, 2rem);
+            color: #1EAFBD;
+            margin-bottom: 8px;
+            animation: rotate 2s linear infinite;
+            display: inline-block;
+        }
+        
+        @keyframes rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .waiting-box strong {
+            font-size: clamp(0.85rem, 2vw, 1rem);
+            display: block;
+            margin-bottom: 4px;
+            color: #0F5860;
+        }
+        
+        .waiting-box small {
+            font-size: clamp(0.7rem, 1.5vw, 0.8rem);
+            color: #64748B;
+        }
+        
+        /* ============================================= */
+        /* 📱 RESPONSIVE - MOBILE (≤ 576px)               */
+        /* ============================================= */
         @media (max-width: 576px) {
             .navbar-custom { padding: 8px 0; }
             .nav-icon-btn { font-size: 1rem; padding: 6px 8px; }
             .points-nav { padding: 3px 10px; font-size: 0.75rem; }
-            #trackingMap { height: 320px; }
+            #trackingMap { height: 280px; }
             .container { padding-left: 10px; padding-right: 10px; }
             .status-label { font-size: 0.55rem; }
+        }
+        
+        /* ============================================= */
+        /* 📱 RESPONSIVE - TABLET (577px - 992px)         */
+        /* ============================================= */
+        @media (min-width: 577px) and (max-width: 992px) {
+            #trackingMap { height: 400px; }
+        }
+        
+        /* ============================================= */
+        /* 💻 RESPONSIVE - DESKTOP (≥ 993px)              */
+        /* ============================================= */
+        @media (min-width: 993px) {
+            #trackingMap { height: 480px; }
         }
         
         @media (min-width: 1920px) {
@@ -566,33 +679,34 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         </div>
     </div>
     
-    <!-- ETA Box -->
-    <div class="eta-box mb-3" id="etaBox" style="display: none;">
-        <div class="small opacity-75">Estimated Arrival Time</div>
-        <div class="eta-number" id="etaNumber">--</div>
-        <div class="small opacity-75">minutes</div>
+    <!-- ETA Box - Only for "on_the_way" -->
+    <?php if ($deliveryStatus === 'on_the_way'): ?>
+        <div class="eta-box mb-3" id="etaBox">
+            <div class="small opacity-75">Estimated Arrival Time</div>
+            <div class="eta-number" id="etaNumber">15</div>
+            <div class="small opacity-75">minutes</div>
+        </div>
+    <?php endif; ?>
+    
+    <!-- ✅ WAITING BOX (Before Arrival) -->
+    <div class="mb-3" id="waitingBox">
+        <div class="waiting-box">
+            <i class="fa-solid fa-clock"></i>
+            <strong>သင့်အော်ဒါ လမ်းပေါ်ရောက်နေပါပြီ</strong>
+            <small>ပစ္စည်းရောက်သည့်အခါ "Order Received" Button ပေါ်လာပါမည်</small>
+        </div>
     </div>
     
-    <!-- ✅ RECEIVED BUTTON - ONLY WHEN ARRIVED (Hidden by default) -->
+    <!-- ✅ RECEIVED BUTTON (Hidden by default) -->
     <div class="mb-3" id="receivedButtonBox" style="display: none;">
         <button class="btn-received" id="btnReceived" onclick="markAsReceived()">
-            <i class="fa-solid fa-check-circle me-2"></i>
-            ပစ္စည်းရောက်ပါပြီ — Order Received
+            <i class="fa-solid fa-check-circle"></i>
+            <span>ပစ္စည်းရောက်ပါပြီ — Order Received</span>
         </button>
         <p class="text-center text-muted small mt-2 mb-0">
             <i class="fa-solid fa-info-circle me-1"></i>
             သင့်အော်ဒါ ရောက်ရှိပါက ဤ Button ကို နှိပ်ပါ
         </p>
-    </div>
-    
-    <!-- ✅ WAITING MESSAGE (When not yet arrived) -->
-    <div class="mb-3" id="waitingBox">
-        <div class="alert alert-info text-center rounded-3 border-0 mb-0">
-            <i class="fa-solid fa-clock me-2"></i>
-            <strong>သင့်အော်ဒါ လမ်းပေါ်ရောက်နေပါပြီ</strong>
-            <br>
-            <small>ပစ္စည်းရောက်သည့်အခါ "Order Received" Button ပေါ်လာပါမည်</small>
-        </div>
     </div>
     
     <!-- Map -->
@@ -692,13 +806,12 @@ const bounds = L.latLngBounds(waypoints);
 map.fitBounds(bounds, { padding: [60, 60] });
 
 // =============================================
-// 🛵 DELIVERY BIKE ANIMATION WITH DIRECTION
+// 🛵 DELIVERY BIKE ANIMATION
 // =============================================
 
 <?php if (in_array($deliveryStatus, ['on_the_way', 'delivered'])): ?>
     
     let currentAngle = 0;
-    let eta = Math.ceil(waypoints.length * 2);
 
     function getBikeIcon(angle) {
         return L.divIcon({
@@ -733,17 +846,19 @@ map.fitBounds(bounds, { padding: [60, 60] });
         .addTo(map)
         .bindPopup('<strong>🛵 Your Delivery</strong><br>On the way!');
 
-    document.getElementById('etaBox').style.display = 'block';
-    document.getElementById('etaNumber').textContent = eta;
-
     <?php if ($deliveryStatus === 'on_the_way'): ?>
     
-    // ✅ Animate along waypoints
-    let totalProgress = 0;
+    // ✅ 15-SECOND ANIMATION
+    const ANIMATION_DURATION = 15000; // 15 seconds
+    const TOTAL_STEPS = 100;
+    const STEP_INTERVAL = ANIMATION_DURATION / TOTAL_STEPS; // 150ms
     const totalDistance = waypoints.length - 1;
     
+    let step = 0;
+    
     const interval = setInterval(() => {
-        totalProgress += 0.02;
+        step++;
+        const totalProgress = (step / TOTAL_STEPS) * totalDistance;
         
         if (totalProgress >= totalDistance) {
             clearInterval(interval);
@@ -751,7 +866,10 @@ map.fitBounds(bounds, { padding: [60, 60] });
             // ✅ Final position
             const lastIdx = waypoints.length - 1;
             bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
-            document.getElementById('etaNumber').textContent = '0';
+            
+            // Update ETA to 0
+            const etaEl = document.getElementById('etaNumber');
+            if (etaEl) etaEl.textContent = '0';
             
             // ✅ SHOW RECEIVED BUTTON + HIDE WAITING
             document.getElementById('receivedButtonBox').style.display = 'block';
@@ -760,9 +878,10 @@ map.fitBounds(bounds, { padding: [60, 60] });
             Swal.fire({
                 icon: 'success',
                 title: '🛵 Delivery Arrived!',
-                text: 'သင့် Order ရောက်ပါပြီ! ပစ္စည်းလက်ခံရရှိပါက "Order Received" Button ကို နှိပ်ပါ။',
+                html: 'သင့် Order ရောက်ပါပြီ!<br><small>ပစ္စည်းလက်ခံရရှိပါက "Order Received" Button ကို နှိပ်ပါ။</small>',
                 confirmButtonColor: '#28a745',
-                confirmButtonText: 'ပြီးပါပြီ'
+                confirmButtonText: 'ပြီးပါပြီ',
+                allowOutsideClick: false
             });
             return;
         }
@@ -792,21 +911,20 @@ map.fitBounds(bounds, { padding: [60, 60] });
         
         bikeMarker.setLatLng([bikeLat, bikeLng]);
         
-        // ETA update
-        eta = Math.ceil((totalDistance - totalProgress) * 2);
-        if (eta < 0) eta = 0;
-        document.getElementById('etaNumber').textContent = eta;
+        // ✅ ETA update (15 → 0)
+        const remainingRatio = (totalDistance - totalProgress) / totalDistance;
+        const eta = Math.ceil(15 * remainingRatio);
+        const etaEl = document.getElementById('etaNumber');
+        if (etaEl) etaEl.textContent = eta;
         
-    }, 200);
+    }, STEP_INTERVAL);
     
     <?php else: ?>
     
-    // ✅ Already delivered - show button immediately
+    // Already delivered - show button immediately
     const lastIdx = waypoints.length - 1;
     bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
-    document.getElementById('etaNumber').textContent = '0';
     
-    // Show button for already delivered orders
     document.getElementById('receivedButtonBox').style.display = 'block';
     document.getElementById('waitingBox').style.display = 'none';
     
@@ -814,15 +932,8 @@ map.fitBounds(bounds, { padding: [60, 60] });
     
 <?php else: ?>
     
-    document.getElementById('etaBox').style.display = 'none';
+    // Preparing or Pending - hide button
     document.getElementById('receivedButtonBox').style.display = 'none';
-    
-    // Show waiting message only for "on_the_way" - not for preparing
-    <?php if ($deliveryStatus === 'preparing'): ?>
-        document.getElementById('waitingBox').style.display = 'none';
-    <?php else: ?>
-        document.getElementById('waitingBox').style.display = 'block';
-    <?php endif; ?>
     
 <?php endif; ?>
 
@@ -838,12 +949,13 @@ function markAsReceived() {
         confirmButtonColor: '#28a745',
         cancelButtonColor: '#6c757d',
         confirmButtonText: '✅ ရောက်ပါပြီ',
-        cancelButtonText: 'မရောက်သေးပါ'
+        cancelButtonText: 'မရောက်သေးပါ',
+        allowOutsideClick: false
     }).then((result) => {
         if (result.isConfirmed) {
             const btn = document.getElementById('btnReceived');
             btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Processing...';
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Processing...</span>';
             
             const formData = new FormData();
             formData.append('action', 'mark_received');
@@ -861,20 +973,21 @@ function markAsReceived() {
                         title: '🎉 Order Received!',
                         text: 'သင့်အော်ဒါ ပြီးစီးပါပြီ! ကျေးဇူးတင်ပါတယ်။',
                         confirmButtonColor: '#1EAFBD',
-                        confirmButtonText: 'ပြီးပါပြီ'
+                        confirmButtonText: 'ပြီးပါပြီ',
+                        allowOutsideClick: false
                     }).then(() => {
                         window.location.href = 'history.php';
                     });
                 } else {
                     Swal.fire('Error', data.message, 'error');
                     btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i>ပစ္စည်းရောက်ပါပြီ — Order Received';
+                    btn.innerHTML = '<i class="fa-solid fa-check-circle"></i><span>ပစ္စည်းရောက်ပါပြီ — Order Received</span>';
                 }
             })
             .catch(err => {
                 Swal.fire('Error', 'Cannot update. Please try again.', 'error');
                 btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i>ပစ္စည်းရောက်ပါပြီ — Order Received';
+                btn.innerHTML = '<i class="fa-solid fa-check-circle"></i><span>ပစ္စည်းရောက်ပါပြီ — Order Received</span>';
             });
         }
     });
