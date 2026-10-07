@@ -106,16 +106,19 @@ $destLat = $order['dest_lat'] ?? $canteenLat;
 $destLng = $order['dest_lng'] ?? $canteenLng;
 
 // =============================================
-// ✅ 7 DELIVERY LOCATIONS WITH WAYPOINTS
+// ✅ 7 DELIVERY LOCATIONS WITH ROAD-BASED WAYPOINTS
 // =============================================
 $delivery_locations_map = [
     'ပင်မစာသင်ဆောင်' => [
         'lat' => 16.836874, 'lng' => 97.596156,
         'waypoints' => [
-            [16.8378531, 97.5987163], // Canteen
-            [16.8375000, 97.5985000],
-            [16.8372000, 97.5980000],
-            [16.8369000, 97.5970000],
+            [16.8378531, 97.5987163], // Canteen (Start)
+            [16.8378000, 97.5985000], // Follow road
+            [16.8376000, 97.5982000],
+            [16.8374000, 97.5978000],
+            [16.8372000, 97.5974000],
+            [16.8370000, 97.5970000],
+            [16.8369000, 97.5965000],
             [16.836874, 97.596156]  // Destination
         ]
     ],
@@ -123,9 +126,12 @@ $delivery_locations_map = [
         'lat' => 16.836874, 'lng' => 97.596156,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8375000, 97.5985000],
-            [16.8372000, 97.5980000],
-            [16.8369000, 97.5970000],
+            [16.8378000, 97.5985000],
+            [16.8376000, 97.5982000],
+            [16.8374000, 97.5978000],
+            [16.8372000, 97.5974000],
+            [16.8370000, 97.5970000],
+            [16.8369000, 97.5965000],
             [16.836874, 97.596156]
         ]
     ],
@@ -133,8 +139,10 @@ $delivery_locations_map = [
         'lat' => 16.837771, 'lng' => 97.599861,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8378000, 97.5990000],
-            [16.8377500, 97.5995000],
+            [16.8378500, 97.5990000],
+            [16.8378300, 97.5993000],
+            [16.8378100, 97.5995000],
+            [16.8377900, 97.5997000],
             [16.837771, 97.599861]
         ]
     ],
@@ -142,7 +150,8 @@ $delivery_locations_map = [
         'lat' => 16.837603, 'lng' => 97.599519,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8377000, 97.5990000],
+            [16.8378000, 97.5989000],
+            [16.8377000, 97.5991000],
             [16.8376500, 97.5993000],
             [16.837603, 97.599519]
         ]
@@ -151,7 +160,9 @@ $delivery_locations_map = [
         'lat' => 16.838378, 'lng' => 97.598966,
         'waypoints' => [
             [16.8378531, 97.5987163],
+            [16.8379000, 97.5987500],
             [16.8380000, 97.5988000],
+            [16.8381000, 97.5988500],
             [16.8382000, 97.5989000],
             [16.838378, 97.598966]
         ]
@@ -160,8 +171,10 @@ $delivery_locations_map = [
         'lat' => 16.838183, 'lng' => 97.599650,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8380000, 97.5990000],
-            [16.8381000, 97.5994000],
+            [16.8379000, 97.5989000],
+            [16.8379500, 97.5991000],
+            [16.8380000, 97.5993000],
+            [16.8381000, 97.5995000],
             [16.838183, 97.599650]
         ]
     ],
@@ -169,8 +182,10 @@ $delivery_locations_map = [
         'lat' => 16.838698, 'lng' => 97.599426,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8380000, 97.5990000],
-            [16.8384000, 97.5993000],
+            [16.8379000, 97.5989000],
+            [16.8380000, 97.5991000],
+            [16.8382000, 97.5993000],
+            [16.8384000, 97.5994000],
             [16.838698, 97.599426]
         ]
     ],
@@ -178,8 +193,10 @@ $delivery_locations_map = [
         'lat' => 16.837771, 'lng' => 97.599861,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8378000, 97.5990000],
-            [16.8377500, 97.5995000],
+            [16.8378500, 97.5990000],
+            [16.8378300, 97.5993000],
+            [16.8378100, 97.5995000],
+            [16.8377900, 97.5997000],
             [16.837771, 97.599861]
         ]
     ],
@@ -187,8 +204,10 @@ $delivery_locations_map = [
         'lat' => 16.838183, 'lng' => 97.599650,
         'waypoints' => [
             [16.8378531, 97.5987163],
-            [16.8380000, 97.5990000],
-            [16.8381000, 97.5994000],
+            [16.8379000, 97.5989000],
+            [16.8379500, 97.5991000],
+            [16.8380000, 97.5993000],
+            [16.8381000, 97.5995000],
             [16.838183, 97.599650]
         ]
     ]
@@ -201,17 +220,16 @@ $waypoints = [];
 if (isset($delivery_locations_map[$deliveryAddr])) {
     $waypoints = $delivery_locations_map[$deliveryAddr]['waypoints'];
 } else {
-    // Default: Straight line with intermediate points
+    // Default: 6 intermediate points
     $waypoints = [
         [$canteenLat, $canteenLng],
-        [$canteenLat + ($destLat - $canteenLat) * 0.33, $canteenLng + ($destLng - $canteenLng) * 0.33],
-        [$canteenLat + ($destLat - $canteenLat) * 0.66, $canteenLng + ($destLng - $canteenLng) * 0.66],
+        [$canteenLat + ($destLat - $canteenLat) * 0.2, $canteenLng + ($destLng - $canteenLng) * 0.2],
+        [$canteenLat + ($destLat - $canteenLat) * 0.4, $canteenLng + ($destLng - $canteenLng) * 0.4],
+        [$canteenLat + ($destLat - $canteenLat) * 0.6, $canteenLng + ($destLng - $canteenLng) * 0.6],
+        [$canteenLat + ($destLat - $canteenLat) * 0.8, $canteenLng + ($destLng - $canteenLng) * 0.8],
         [$destLat, $destLng]
     ];
 }
-
-// Check if delivered
-$isDelivered = ($deliveryStatus === 'delivered');
 ?>
 
 <!DOCTYPE html>
@@ -371,7 +389,6 @@ $isDelivered = ($deliveryStatus === 'delivered');
         .status-step.active .status-label { color: var(--brand-color); font-weight: 700; }
         .status-step.completed .status-label { color: #28a745; font-weight: 600; }
         
-        /* 🛵 BIKE ICON WITH DIRECTION */
         .bike-icon-wrapper {
             position: relative;
             width: 60px;
@@ -394,7 +411,7 @@ $isDelivered = ($deliveryStatus === 'delivered');
             box-shadow: 0 6px 20px rgba(255, 193, 7, 0.8);
             border: 3px solid white;
             position: relative;
-            transition: transform 0.5s ease;
+            transition: transform 0.6s ease;
         }
         
         .bike-icon::before {
@@ -437,7 +454,7 @@ $isDelivered = ($deliveryStatus === 'delivered');
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
         
-        /* ✅ RECEIVED BUTTON */
+        /* ✅ RECEIVED BUTTON - ONLY WHEN DELIVERED */
         .btn-received {
             background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
             color: white;
@@ -556,19 +573,27 @@ $isDelivered = ($deliveryStatus === 'delivered');
         <div class="small opacity-75">minutes</div>
     </div>
     
-    <!-- ✅ RECEIVED BUTTON (User Control) -->
-    <?php if ($deliveryStatus === 'on_the_way'): ?>
-        <div class="mb-3" id="receivedButtonBox">
-            <button class="btn-received" id="btnReceived" onclick="markAsReceived()">
-                <i class="fa-solid fa-check-circle me-2"></i>
-                ပစ္စည်းရောက်ပါပြီ — Order Received
-            </button>
-            <p class="text-center text-muted small mt-2 mb-0">
-                <i class="fa-solid fa-info-circle me-1"></i>
-                သင့်အော်ဒါ ရောက်ရှိပါက ဤ Button ကို နှိပ်ပါ
-            </p>
+    <!-- ✅ RECEIVED BUTTON - ONLY WHEN ARRIVED (Hidden by default) -->
+    <div class="mb-3" id="receivedButtonBox" style="display: none;">
+        <button class="btn-received" id="btnReceived" onclick="markAsReceived()">
+            <i class="fa-solid fa-check-circle me-2"></i>
+            ပစ္စည်းရောက်ပါပြီ — Order Received
+        </button>
+        <p class="text-center text-muted small mt-2 mb-0">
+            <i class="fa-solid fa-info-circle me-1"></i>
+            သင့်အော်ဒါ ရောက်ရှိပါက ဤ Button ကို နှိပ်ပါ
+        </p>
+    </div>
+    
+    <!-- ✅ WAITING MESSAGE (When not yet arrived) -->
+    <div class="mb-3" id="waitingBox">
+        <div class="alert alert-info text-center rounded-3 border-0 mb-0">
+            <i class="fa-solid fa-clock me-2"></i>
+            <strong>သင့်အော်ဒါ လမ်းပေါ်ရောက်နေပါပြီ</strong>
+            <br>
+            <small>ပစ္စည်းရောက်သည့်အခါ "Order Received" Button ပေါ်လာပါမည်</small>
         </div>
-    <?php endif; ?>
+    </div>
     
     <!-- Map -->
     <div id="trackingMap"></div>
@@ -595,7 +620,7 @@ $isDelivered = ($deliveryStatus === 'delivered');
 
 <script>
 // =============================================
-// 🗺️ INITIALIZE MAP
+// 🗺️ CONFIG
 // =============================================
 const canteenLat = <?= $canteenLat ?>;
 const canteenLng = <?= $canteenLng ?>;
@@ -603,8 +628,6 @@ const destLat = <?= $destLat ?>;
 const destLng = <?= $destLng ?>;
 const deliveryStatus = '<?= $deliveryStatus ?>';
 const orderId = <?= $orderId ?>;
-
-// ✅ Waypoints
 const waypoints = <?= json_encode($waypoints) ?>;
 
 const map = L.map('trackingMap', {
@@ -674,9 +697,7 @@ map.fitBounds(bounds, { padding: [60, 60] });
 
 <?php if (in_array($deliveryStatus, ['on_the_way', 'delivered'])): ?>
     
-    let currentWaypointIndex = 0;
-    let progress = 0;
-    const totalSteps = waypoints.length * 50;
+    let currentAngle = 0;
     let eta = Math.ceil(waypoints.length * 2);
 
     function getBikeIcon(angle) {
@@ -692,7 +713,6 @@ map.fitBounds(bounds, { padding: [60, 60] });
         });
     }
 
-    // Calculate initial angle
     function calcAngle(fromLat, fromLng, toLat, toLng) {
         const dLng = toLng - fromLng;
         const dLat = toLat - fromLat;
@@ -701,7 +721,6 @@ map.fitBounds(bounds, { padding: [60, 60] });
 
     let bikeLat = waypoints[0][0];
     let bikeLng = waypoints[0][1];
-    let currentAngle = 0;
 
     if (waypoints.length > 1) {
         currentAngle = calcAngle(
@@ -729,15 +748,19 @@ map.fitBounds(bounds, { padding: [60, 60] });
         if (totalProgress >= totalDistance) {
             clearInterval(interval);
             
-            // Final position
+            // ✅ Final position
             const lastIdx = waypoints.length - 1;
             bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
             document.getElementById('etaNumber').textContent = '0';
             
+            // ✅ SHOW RECEIVED BUTTON + HIDE WAITING
+            document.getElementById('receivedButtonBox').style.display = 'block';
+            document.getElementById('waitingBox').style.display = 'none';
+            
             Swal.fire({
                 icon: 'success',
                 title: '🛵 Delivery Arrived!',
-                text: 'သင့် Order ရောက်ပါပြီ! ပစ္စည်းလက်ခံရရှိပါက Button ကို နှိပ်ပါ။',
+                text: 'သင့် Order ရောက်ပါပြီ! ပစ္စည်းလက်ခံရရှိပါက "Order Received" Button ကို နှိပ်ပါ။',
                 confirmButtonColor: '#28a745',
                 confirmButtonText: 'ပြီးပါပြီ'
             });
@@ -762,7 +785,7 @@ map.fitBounds(bounds, { padding: [60, 60] });
         const newAngle = calcAngle(fromPt[0], fromPt[1], toPt[0], toPt[1]);
         
         // Smooth angle transition
-        if (Math.abs(newAngle - currentAngle) > 5) {
+        if (Math.abs(newAngle - currentAngle) > 3) {
             currentAngle = newAngle;
             bikeMarker.setIcon(getBikeIcon(currentAngle));
         }
@@ -778,21 +801,33 @@ map.fitBounds(bounds, { padding: [60, 60] });
     
     <?php else: ?>
     
-    // Delivered - static at destination
+    // ✅ Already delivered - show button immediately
     const lastIdx = waypoints.length - 1;
     bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
     document.getElementById('etaNumber').textContent = '0';
+    
+    // Show button for already delivered orders
+    document.getElementById('receivedButtonBox').style.display = 'block';
+    document.getElementById('waitingBox').style.display = 'none';
     
     <?php endif; ?>
     
 <?php else: ?>
     
     document.getElementById('etaBox').style.display = 'none';
+    document.getElementById('receivedButtonBox').style.display = 'none';
+    
+    // Show waiting message only for "on_the_way" - not for preparing
+    <?php if ($deliveryStatus === 'preparing'): ?>
+        document.getElementById('waitingBox').style.display = 'none';
+    <?php else: ?>
+        document.getElementById('waitingBox').style.display = 'block';
+    <?php endif; ?>
     
 <?php endif; ?>
 
 // =============================================
-// ✅ MARK AS RECEIVED (User Control)
+// ✅ MARK AS RECEIVED
 // =============================================
 function markAsReceived() {
     Swal.fire({
@@ -810,7 +845,6 @@ function markAsReceived() {
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Processing...';
             
-            // Send to server
             const formData = new FormData();
             formData.append('action', 'mark_received');
             formData.append('orderId', orderId);
@@ -829,7 +863,7 @@ function markAsReceived() {
                         confirmButtonColor: '#1EAFBD',
                         confirmButtonText: 'ပြီးပါပြီ'
                     }).then(() => {
-                        location.reload();
+                        window.location.href = 'history.php';
                     });
                 } else {
                     Swal.fire('Error', data.message, 'error');
