@@ -13,6 +13,24 @@ $userId = $_SESSION['user_id'];
 $orderId = intval($_GET['orderId'] ?? 0);
 
 // =============================================
+// HANDLE USER MARK AS RECEIVED
+// =============================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'mark_received') {
+    $orderId = intval($_POST['orderId']);
+    
+    $stmt = $conn->prepare("UPDATE orders SET status = 'completed', deliveryStatus = 'delivered' WHERE orderId = ? AND userId = ?");
+    $stmt->bind_param("ii", $orderId, $userId);
+    
+    if ($stmt->execute()) {
+        echo json_encode(['status' => 'success', 'message' => 'Order Received!']);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => 'Failed to update']);
+    }
+    $stmt->close();
+    exit();
+}
+
+// =============================================
 // FETCH ORDER WITH DELIVERY DATA
 // =============================================
 $stmt = $conn->prepare("
@@ -79,13 +97,121 @@ if ($status === 'cooking') {
     $deliveryStatus = 'cancelled';
 }
 
-// Canteen Location (Starting Point) - UCSH Hpa-An
+// Canteen Location (Starting Point)
 $canteenLat = 16.8378531;
 $canteenLng = 97.5987163;
 
 // Destination
 $destLat = $order['dest_lat'] ?? $canteenLat;
 $destLng = $order['dest_lng'] ?? $canteenLng;
+
+// =============================================
+// ✅ 7 DELIVERY LOCATIONS WITH WAYPOINTS
+// =============================================
+$delivery_locations_map = [
+    'ပင်မစာသင်ဆောင်' => [
+        'lat' => 16.836874, 'lng' => 97.596156,
+        'waypoints' => [
+            [16.8378531, 97.5987163], // Canteen
+            [16.8375000, 97.5985000],
+            [16.8372000, 97.5980000],
+            [16.8369000, 97.5970000],
+            [16.836874, 97.596156]  // Destination
+        ]
+    ],
+    'ပင်မစာသင်ဆောင် (Lobby)' => [
+        'lat' => 16.836874, 'lng' => 97.596156,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8375000, 97.5985000],
+            [16.8372000, 97.5980000],
+            [16.8369000, 97.5970000],
+            [16.836874, 97.596156]
+        ]
+    ],
+    'ကျောင်းသားဆောင် (H1) ဆောင်' => [
+        'lat' => 16.837771, 'lng' => 97.599861,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8378000, 97.5990000],
+            [16.8377500, 97.5995000],
+            [16.837771, 97.599861]
+        ]
+    ],
+    'ဆရာ၊ဆရာမ အိမ်ရာ (B1) ဆောင်' => [
+        'lat' => 16.837603, 'lng' => 97.599519,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8377000, 97.5990000],
+            [16.8376500, 97.5993000],
+            [16.837603, 97.599519]
+        ]
+    ],
+    'ဆရာ၊ဆရာမ အိမ်ရာ (B2) ဆောင်' => [
+        'lat' => 16.838378, 'lng' => 97.598966,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8380000, 97.5988000],
+            [16.8382000, 97.5989000],
+            [16.838378, 97.598966]
+        ]
+    ],
+    'ကျောင်းသူဆောင် (H2) ဆောင်' => [
+        'lat' => 16.838183, 'lng' => 97.599650,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8380000, 97.5990000],
+            [16.8381000, 97.5994000],
+            [16.838183, 97.599650]
+        ]
+    ],
+    'ကျောင်းသူဆောင် (160) ဆောင်' => [
+        'lat' => 16.838698, 'lng' => 97.599426,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8380000, 97.5990000],
+            [16.8384000, 97.5993000],
+            [16.838698, 97.599426]
+        ]
+    ],
+    'အမျိုးသား (H1) ဆောင်' => [
+        'lat' => 16.837771, 'lng' => 97.599861,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8378000, 97.5990000],
+            [16.8377500, 97.5995000],
+            [16.837771, 97.599861]
+        ]
+    ],
+    'အမျိုးသမီး (H2) ဆောင်' => [
+        'lat' => 16.838183, 'lng' => 97.599650,
+        'waypoints' => [
+            [16.8378531, 97.5987163],
+            [16.8380000, 97.5990000],
+            [16.8381000, 97.5994000],
+            [16.838183, 97.599650]
+        ]
+    ]
+];
+
+// Get waypoints for this order
+$deliveryAddr = $order['deliveryAddress'] ?? 'ပင်မစာသင်ဆောင်';
+$waypoints = [];
+
+if (isset($delivery_locations_map[$deliveryAddr])) {
+    $waypoints = $delivery_locations_map[$deliveryAddr]['waypoints'];
+} else {
+    // Default: Straight line with intermediate points
+    $waypoints = [
+        [$canteenLat, $canteenLng],
+        [$canteenLat + ($destLat - $canteenLat) * 0.33, $canteenLng + ($destLng - $canteenLng) * 0.33],
+        [$canteenLat + ($destLat - $canteenLat) * 0.66, $canteenLng + ($destLng - $canteenLng) * 0.66],
+        [$destLat, $destLng]
+    ];
+}
+
+// Check if delivered
+$isDelivered = ($deliveryStatus === 'delivered');
 ?>
 
 <!DOCTYPE html>
@@ -119,9 +245,6 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
         .bg-brand { background-color: var(--brand-color) !important; }
         .bg-brand-light { background-color: var(--brand-light) !important; }
         
-        /* ============================================= */
-        /* 🎨 NAVBAR (Same as other pages)                */
-        /* ============================================= */
         .navbar-custom {
             background-color: #FFFFFF;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
@@ -146,20 +269,6 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             font-size: 0.65rem;
             background-color: #FF4757;
         }
-        .search-box { max-width: 380px; }
-        .search-box .form-control {
-            border-radius: 20px;
-            padding-left: 40px;
-            border: 1px solid #E2E8F0;
-            background-color: #F8FAFC;
-        }
-        .search-box .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94A3B8;
-        }
         .points-nav {
             background: linear-gradient(135deg, #fef3c7, #fde68a);
             border-radius: 8px;
@@ -173,9 +282,6 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             border: 1px solid #fcd34d;
         }
         
-        /* ============================================= */
-        /* 🗺️ MAP                                         */
-        /* ============================================= */
         #trackingMap {
             height: clamp(300px, 50vh, 500px);
             width: 100%;
@@ -185,9 +291,6 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             z-index: 1;
         }
         
-        /* ============================================= */
-        /* 📦 DELIVERY STATUS CARD                        */
-        /* ============================================= */
         .delivery-status-card {
             background: white;
             border-radius: clamp(12px, 2vw, 20px);
@@ -268,9 +371,16 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
         .status-step.active .status-label { color: var(--brand-color); font-weight: 700; }
         .status-step.completed .status-label { color: #28a745; font-weight: 600; }
         
-        /* ============================================= */
-        /* 🛵 BIKE ICON                                    */
-        /* ============================================= */
+        /* 🛵 BIKE ICON WITH DIRECTION */
+        .bike-icon-wrapper {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
         .bike-icon {
             background: #FFC107;
             color: white;
@@ -282,9 +392,9 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             justify-content: center;
             font-size: 28px;
             box-shadow: 0 6px 20px rgba(255, 193, 7, 0.8);
-            animation: bikeBounce 1s infinite;
             border: 3px solid white;
             position: relative;
+            transition: transform 0.5s ease;
         }
         
         .bike-icon::before {
@@ -296,19 +406,11 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             animation: bikePulse 2s ease-out infinite;
         }
         
-        @keyframes bikeBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-8px); }
-        }
-        
         @keyframes bikePulse {
             0% { transform: scale(1); opacity: 1; }
             100% { transform: scale(1.5); opacity: 0; }
         }
         
-        /* ============================================= */
-        /* ⏱️ ETA BOX                                     */
-        /* ============================================= */
         .eta-box {
             background: linear-gradient(135deg, #1EAFBD 0%, #0F5860 100%);
             color: white;
@@ -328,9 +430,6 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             font-size: clamp(0.65rem, 1.5vw, 0.75rem);
         }
         
-        /* ============================================= */
-        /* 📋 INFO CARD                                   */
-        /* ============================================= */
         .delivery-info-card {
             background: white;
             border-radius: clamp(12px, 2vw, 16px);
@@ -338,9 +437,38 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
         
-        /* ============================================= */
-        /* 📱 RESPONSIVE - MOBILE (≤ 576px)               */
-        /* ============================================= */
+        /* ✅ RECEIVED BUTTON */
+        .btn-received {
+            background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            width: 100%;
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+            transition: all 0.3s ease;
+            animation: receivedPulse 2s infinite;
+        }
+        
+        .btn-received:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(40, 167, 69, 0.6);
+        }
+        
+        .btn-received:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            animation: none;
+            box-shadow: none;
+        }
+        
+        @keyframes receivedPulse {
+            0%, 100% { box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4); }
+            50% { box-shadow: 0 6px 30px rgba(40, 167, 69, 0.8); }
+        }
+        
         @media (max-width: 576px) {
             .navbar-custom { padding: 8px 0; }
             .nav-icon-btn { font-size: 1rem; padding: 6px 8px; }
@@ -350,23 +478,6 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
             .status-label { font-size: 0.55rem; }
         }
         
-        /* ============================================= */
-        /* 📱 RESPONSIVE - TABLET (577px - 992px)         */
-        /* ============================================= */
-        @media (min-width: 577px) and (max-width: 992px) {
-            #trackingMap { height: 400px; }
-        }
-        
-        /* ============================================= */
-        /* 💻 RESPONSIVE - DESKTOP (≥ 993px)              */
-        /* ============================================= */
-        @media (min-width: 993px) {
-            #trackingMap { height: 500px; }
-        }
-        
-        /* ============================================= */
-        /* 📺 RESPONSIVE - 4K/TV (≥ 1920px)               */
-        /* ============================================= */
         @media (min-width: 1920px) {
             body { font-size: 18px; }
             .container { max-width: 1400px; }
@@ -445,6 +556,20 @@ $destLng = $order['dest_lng'] ?? $canteenLng;
         <div class="small opacity-75">minutes</div>
     </div>
     
+    <!-- ✅ RECEIVED BUTTON (User Control) -->
+    <?php if ($deliveryStatus === 'on_the_way'): ?>
+        <div class="mb-3" id="receivedButtonBox">
+            <button class="btn-received" id="btnReceived" onclick="markAsReceived()">
+                <i class="fa-solid fa-check-circle me-2"></i>
+                ပစ္စည်းရောက်ပါပြီ — Order Received
+            </button>
+            <p class="text-center text-muted small mt-2 mb-0">
+                <i class="fa-solid fa-info-circle me-1"></i>
+                သင့်အော်ဒါ ရောက်ရှိပါက ဤ Button ကို နှိပ်ပါ
+            </p>
+        </div>
+    <?php endif; ?>
+    
     <!-- Map -->
     <div id="trackingMap"></div>
     
@@ -477,6 +602,10 @@ const canteenLng = <?= $canteenLng ?>;
 const destLat = <?= $destLat ?>;
 const destLng = <?= $destLng ?>;
 const deliveryStatus = '<?= $deliveryStatus ?>';
+const orderId = <?= $orderId ?>;
+
+// ✅ Waypoints
+const waypoints = <?= json_encode($waypoints) ?>;
 
 const map = L.map('trackingMap', {
     center: [canteenLat, canteenLng],
@@ -484,13 +613,7 @@ const map = L.map('trackingMap', {
     zoomControl: true
 });
 
-// Google Maps Hybrid
 var googleHybrid = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
-    attribution: '© Google Maps',
-    maxZoom: 20
-});
-
-var googleSatellite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
     attribution: '© Google Maps',
     maxZoom: 20
 });
@@ -504,7 +627,6 @@ googleHybrid.addTo(map);
 
 L.control.layers({
     "🛰️ Hybrid": googleHybrid,
-    "🌍 Satellite": googleSatellite,
     "🗺️ Streets": googleStreets
 }, null, { position: 'topright' }).addTo(map);
 
@@ -532,44 +654,63 @@ L.marker([destLat, destLng], { icon: destIcon })
     .addTo(map)
     .bindPopup('<strong>📍 <?= htmlspecialchars($order['deliveryAddress'] ?? 'Destination') ?></strong>');
 
-// Route Line
-L.polyline([
-    [canteenLat, canteenLng],
-    [destLat, destLng]
-], {
+// ✅ ROUTE LINE (Follows Waypoints - Road-like)
+L.polyline(waypoints, {
     color: '#1EAFBD',
     weight: 5,
     opacity: 0.8,
-    dashArray: '15, 15',
-    lineCap: 'round'
+    dashArray: '10, 10',
+    lineCap: 'round',
+    lineJoin: 'round'
 }).addTo(map);
 
 // Fit Bounds
-const bounds = L.latLngBounds([
-    [canteenLat, canteenLng],
-    [destLat, destLng]
-]);
+const bounds = L.latLngBounds(waypoints);
 map.fitBounds(bounds, { padding: [60, 60] });
 
 // =============================================
-// 🛵 DELIVERY BOY SIMULATION
+// 🛵 DELIVERY BIKE ANIMATION WITH DIRECTION
 // =============================================
-const bikeIcon = L.divIcon({
-    html: '<div class="bike-icon">🛵</div>',
-    iconSize: [60, 60],
-    iconAnchor: [30, 30],
-    className: ''
-});
 
 <?php if (in_array($deliveryStatus, ['on_the_way', 'delivered'])): ?>
     
-    let bikeLat = canteenLat;
-    let bikeLng = canteenLng;
+    let currentWaypointIndex = 0;
     let progress = 0;
-    const totalSteps = 200;
-    let eta = Math.ceil((totalSteps - progress) / 10);
+    const totalSteps = waypoints.length * 50;
+    let eta = Math.ceil(waypoints.length * 2);
 
-    const bikeMarker = L.marker([bikeLat, bikeLng], { icon: bikeIcon })
+    function getBikeIcon(angle) {
+        return L.divIcon({
+            html: `<div class="bike-icon-wrapper">
+                     <div class="bike-icon" style="transform: rotate(${angle}deg);">
+                       <i class="fa-solid fa-motorcycle" style="transform: rotate(${-angle}deg);"></i>
+                     </div>
+                   </div>`,
+            iconSize: [60, 60],
+            iconAnchor: [30, 30],
+            className: ''
+        });
+    }
+
+    // Calculate initial angle
+    function calcAngle(fromLat, fromLng, toLat, toLng) {
+        const dLng = toLng - fromLng;
+        const dLat = toLat - fromLat;
+        return Math.atan2(dLng, dLat) * (180 / Math.PI);
+    }
+
+    let bikeLat = waypoints[0][0];
+    let bikeLng = waypoints[0][1];
+    let currentAngle = 0;
+
+    if (waypoints.length > 1) {
+        currentAngle = calcAngle(
+            waypoints[0][0], waypoints[0][1],
+            waypoints[1][0], waypoints[1][1]
+        );
+    }
+
+    const bikeMarker = L.marker([bikeLat, bikeLng], { icon: getBikeIcon(currentAngle) })
         .addTo(map)
         .bindPopup('<strong>🛵 Your Delivery</strong><br>On the way!');
 
@@ -577,35 +718,71 @@ const bikeIcon = L.divIcon({
     document.getElementById('etaNumber').textContent = eta;
 
     <?php if ($deliveryStatus === 'on_the_way'): ?>
+    
+    // ✅ Animate along waypoints
+    let totalProgress = 0;
+    const totalDistance = waypoints.length - 1;
+    
     const interval = setInterval(() => {
-        progress++;
+        totalProgress += 0.02;
         
-        if (progress > totalSteps) {
+        if (totalProgress >= totalDistance) {
             clearInterval(interval);
-            bikeMarker.setLatLng([destLat, destLng]);
+            
+            // Final position
+            const lastIdx = waypoints.length - 1;
+            bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
             document.getElementById('etaNumber').textContent = '0';
             
             Swal.fire({
                 icon: 'success',
-                title: '🎉 Delivery Arrived!',
-                text: 'သင့် Order ရောက်ပါပြီ!',
-                confirmButtonColor: '#1EAFBD'
+                title: '🛵 Delivery Arrived!',
+                text: 'သင့် Order ရောက်ပါပြီ! ပစ္စည်းလက်ခံရရှိပါက Button ကို နှိပ်ပါ။',
+                confirmButtonColor: '#28a745',
+                confirmButtonText: 'ပြီးပါပြီ'
             });
             return;
         }
         
-        bikeLat = canteenLat + (destLat - canteenLat) * (progress / totalSteps);
-        bikeLng = canteenLng + (destLng - canteenLng) * (progress / totalSteps);
+        const segmentIndex = Math.floor(totalProgress);
+        const segmentProgress = totalProgress - segmentIndex;
+        
+        if (segmentIndex >= waypoints.length - 1) {
+            clearInterval(interval);
+            return;
+        }
+        
+        const fromPt = waypoints[segmentIndex];
+        const toPt = waypoints[segmentIndex + 1];
+        
+        bikeLat = fromPt[0] + (toPt[0] - fromPt[0]) * segmentProgress;
+        bikeLng = fromPt[1] + (toPt[1] - fromPt[1]) * segmentProgress;
+        
+        // ✅ Calculate angle for direction
+        const newAngle = calcAngle(fromPt[0], fromPt[1], toPt[0], toPt[1]);
+        
+        // Smooth angle transition
+        if (Math.abs(newAngle - currentAngle) > 5) {
+            currentAngle = newAngle;
+            bikeMarker.setIcon(getBikeIcon(currentAngle));
+        }
         
         bikeMarker.setLatLng([bikeLat, bikeLng]);
         
-        eta = Math.ceil((totalSteps - progress) / 10);
+        // ETA update
+        eta = Math.ceil((totalDistance - totalProgress) * 2);
+        if (eta < 0) eta = 0;
         document.getElementById('etaNumber').textContent = eta;
         
-    }, 100);
+    }, 200);
+    
     <?php else: ?>
-    bikeMarker.setLatLng([destLat, destLng]);
+    
+    // Delivered - static at destination
+    const lastIdx = waypoints.length - 1;
+    bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
     document.getElementById('etaNumber').textContent = '0';
+    
     <?php endif; ?>
     
 <?php else: ?>
@@ -613,6 +790,61 @@ const bikeIcon = L.divIcon({
     document.getElementById('etaBox').style.display = 'none';
     
 <?php endif; ?>
+
+// =============================================
+// ✅ MARK AS RECEIVED (User Control)
+// =============================================
+function markAsReceived() {
+    Swal.fire({
+        title: 'ပစ္စည်း ရောက်ပါပြီလား?',
+        text: 'သင့်အော်ဒါကို လက်ခံရရှိပါပြီဆိုရင် အတည်ပြုပါ။',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '✅ ရောက်ပါပြီ',
+        cancelButtonText: 'မရောက်သေးပါ'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            const btn = document.getElementById('btnReceived');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>Processing...';
+            
+            // Send to server
+            const formData = new FormData();
+            formData.append('action', 'mark_received');
+            formData.append('orderId', orderId);
+            
+            fetch('track_delivery.php?orderId=' + orderId, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '🎉 Order Received!',
+                        text: 'သင့်အော်ဒါ ပြီးစီးပါပြီ! ကျေးဇူးတင်ပါတယ်။',
+                        confirmButtonColor: '#1EAFBD',
+                        confirmButtonText: 'ပြီးပါပြီ'
+                    }).then(() => {
+                        location.reload();
+                    });
+                } else {
+                    Swal.fire('Error', data.message, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i>ပစ္စည်းရောက်ပါပြီ — Order Received';
+                }
+            })
+            .catch(err => {
+                Swal.fire('Error', 'Cannot update. Please try again.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-check-circle me-2"></i>ပစ္စည်းရောက်ပါပြီ — Order Received';
+            });
+        }
+    });
+}
 
 // =============================================
 // 🔄 AUTO REFRESH
@@ -630,7 +862,7 @@ setInterval(() => {
             }
         })
         .catch(err => console.log('Refresh error:', err));
-}, 3000);
+}, 5000);
 </script>
 
 </body>
