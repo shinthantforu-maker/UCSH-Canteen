@@ -35,7 +35,7 @@ if (preg_match('/point|ပွိုင့်|ပိုင်|အမှတ်/i',
     $points = $user['points'] ?? 0;
     
     $response = "💰 သင့်မှာ <strong>" . number_format($points) . " Points</strong> ရှိပါတယ်။";
-    $quickReplies = ["Menu ကြည့်မည်", "ဈေးဆုံး ဘာလဲ?", "Order မှာမည်"];
+    $quickReplies = ["Menu ကြည့်မည်", "ဈေးအချိုသာဆုံးက ဘာလဲ?", "Order မှာမည်"];
 }
 
 // =============================================
@@ -66,7 +66,7 @@ elseif (preg_match('/top seller|top item|အရောင်းရဆုံး|�
     } else {
         $response = "အရောင်းရဆုံး ပစ္စည်း မရှိသေးပါ။";
     }
-    $quickReplies = ["ဈေးအနည်းဆုံး ဘာလဲ?", "Menu ကြည့်မည်", "ဒီနေ့ ဘာစားရမလဲ?"];
+    $quickReplies = ["ဈေးအချိုသာဆုံးက ဘာလဲ?", "Menu ကြည့်မည်", "ဒီနေ့ ဘာစားရမလဲ?"];
 }
 
 // =============================================
@@ -105,7 +105,7 @@ elseif (preg_match('/ဈေးအကြီးဆုံး|ဈေးကြီး|
     if ($expensive) {
         $response = "💎 ဈေးအကြီးဆုံးက <strong>'" . htmlspecialchars($expensive['itemName']) . "'</strong><br>💰 " . number_format($expensive['points']) . " Points ပါ။";
     }
-    $quickReplies = ["Menu ကြည့်မည်", "ဈေးဆုံး ဘာလဲ?"];
+    $quickReplies = ["Menu ကြည့်မည်", "ဈေးအချိုသာဆုံးက ဘာလဲ?"];
 }
 
 // =============================================
@@ -186,7 +186,7 @@ elseif (preg_match('/ဒီနေ့.*ဘာစား|ဘာစားရမလ�
     } else {
         $response = "Menu ထဲက ပစ္စည်းတွေ ကြည့်ပြီး ရွေးလိုက်ပါ! 🍽️";
     }
-    $quickReplies = ["ဈေးဆုံး ဘာလဲ?", "Menu ကြည့်မည်", "Drinks ဘာတွေရှိလဲ?"];
+    $quickReplies = ["ဈေးအချိုသာဆုံးက ဘာလဲ?", "Menu ကြည့်မည်", "Drinks ဘာတွေရှိလဲ?"];
 }
 
 // =============================================
