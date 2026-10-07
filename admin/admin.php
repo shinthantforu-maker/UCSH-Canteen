@@ -931,23 +931,80 @@ function showOrderDetails(orderId) {
             else if (st === 'partial_rejected') badgeClass = 'bg-warning text-dark';
             statusBadge.className = 'badge ' + badgeClass;
             
+            // ✅ Items Table with Rejected Marking
             let itemsHtml = '';
             let totalPoints = 0;
+            let acceptedTotal = 0;
+            let rejectedTotal = 0;
             
             if (items && items.length > 0) {
                 items.forEach(item => {
                     const itemTotal = item.price * item.quantity;
                     totalPoints += itemTotal;
                     
+                    if (item.is_rejected) {
+                        // ✅ REJECTED ITEM - Red Line Through + Badge
+                        rejectedTotal += itemTotal;
+                        itemsHtml += `
+                            <tr style="opacity: 0.7; background: #fff5f5;">
+                                <td>
+                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
+                                        <i class="fa-solid fa-circle-xmark me-1"></i>
+                                        ${item.itemName}
+                                    </span>
+                                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
+                                </td>
+                                <td class="text-center">
+                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
+                                </td>
+                            </tr>
+                        `;
+                    } else {
+                        // ✅ ACCEPTED ITEM - Normal
+                        acceptedTotal += itemTotal;
+                        itemsHtml += `
+                            <tr>
+                                <td>
+                                    <i class="fa-solid fa-circle-check text-success me-1"></i>
+                                    ${item.itemName}
+                                </td>
+                                <td class="text-center">${item.quantity}</td>
+                                <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
+                                <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
+                            </tr>
+                        `;
+                    }
+                });
+                
+                // ✅ Add Summary Row if there are rejected items
+                if (rejectedTotal > 0) {
                     itemsHtml += `
-                        <tr>
-                            <td>${item.itemName}</td>
-                            <td class="text-center">${item.quantity}</td>
-                            <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
-                            <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
+                        <tr style="background: #f8f9fa; border-top: 2px solid #dee2e6;">
+                            <td colspan="3" class="text-end fw-bold text-success" style="font-size: 0.85rem;">
+                                <i class="fa-solid fa-circle-check me-1"></i>Accepted Total:
+                            </td>
+                            <td class="text-end fw-bold text-success">${Number(acceptedTotal).toLocaleString()} pts</td>
+                        </tr>
+                        <tr style="background: #fff5f5;">
+                            <td colspan="3" class="text-end fw-bold text-danger" style="font-size: 0.85rem;">
+                                <i class="fa-solid fa-circle-xmark me-1"></i>Rejected Total:
+                            </td>
+                            <td class="text-end fw-bold text-danger" style="text-decoration: line-through; text-decoration-color: #dc3545;">${Number(rejectedTotal).toLocaleString()} pts</td>
+                        </tr>
+                        <tr style="background: #f0fdf4;">
+                            <td colspan="3" class="text-end fw-bold text-dark" style="font-size: 0.9rem;">
+                                <i class="fa-solid fa-coins text-warning me-1"></i>Actual Total:
+                            </td>
+                            <td class="text-end fw-bold text-dark" style="font-size: 0.95rem;">${Number(acceptedTotal).toLocaleString()} pts</td>
                         </tr>
                     `;
-                });
+                }
             } else {
                 itemsHtml = '<tr><td colspan="4" class="text-center text-muted">No items</td></tr>';
             }
