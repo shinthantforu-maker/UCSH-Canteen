@@ -181,9 +181,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // =============================================
 // STATISTICS
+// =============================================
 
 // ✅ 7-Day Points (User တွေကို ရောင်းထားတဲ့ Point)
-Total Points("
+$totalPoints = $conn->query("
     SELECT COALESCE(SUM(points_used), 0) as totalPoints 
     FROM orders 
     WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
@@ -265,7 +266,8 @@ $orders_result = $conn->query($orders_query);
 if ($isAjax) {
     ?>
     <div class="row g-3 mb-4">
-<div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7-Day Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>        <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
+        <div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7-Day Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
+        <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">Active Orders</div><div class="stat-number text-dark" data-stat="activeOrders"><?= $activeOrders ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">Top Seller</div><div class="stat-number fs-3 text-dark text-truncate" data-stat="topSeller"><?= htmlspecialchars($topSeller) ?></div></div></div>
     </div>
@@ -469,7 +471,7 @@ if ($isAjax) {
 
         <!-- Stats -->
         <div class="row g-3 mb-4">
-            <div class="col-md-3"><div class="stat-card"><div class="stat-label">Total Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
+            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7-Day Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">Active Orders</div><div class="stat-number text-dark" data-stat="activeOrders"><?= $activeOrders ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">Top Seller</div><div class="stat-number fs-3 text-dark text-truncate" data-stat="topSeller"><?= htmlspecialchars($topSeller) ?></div></div></div>
@@ -657,7 +659,7 @@ if ($isAjax) {
                 
                 <div id="detailsDeliveryBox" class="mb-3" style="display: none;">
                     <h6 class="fw-bold mb-2">
-                        <i class="fa-solid fa-motorcycle text-brand me-1"></i>Delivery Info
+                        <i class="fa-solid fa-box text-brand me-1"></i>Delivery Info
                     </h6>
                     <div class="bg-light p-3 rounded-3 border">
                         <div class="d-flex justify-content-between mb-1">
@@ -705,7 +707,7 @@ if ($isAjax) {
     </div>
 </div>
 
-<!-- Reject Modal (⚠️ တစ်ခုပဲ ရှိရမည်) -->
+<!-- Reject Modal -->
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0 shadow">
@@ -1134,7 +1136,6 @@ function showRejectModal(orderId, itemsWithId) {
     document.getElementById('rejectReasonInput').value = '';
     
     if (!itemsWithId || itemsWithId === 'null' || itemsWithId === '') {
-        // Items မရှိရင် Select All ပဲ ပြ
         var allDiv = document.createElement('div');
         allDiv.className = 'form-check mb-2';
         allDiv.innerHTML = `<input class="form-check-input" type="checkbox" id="selectAllItems" checked onchange="toggleAllItems()"><label class="form-check-label fw-bold" for="selectAllItems">အားလုံး ပယ်ချမည်</label>`;
@@ -1180,7 +1181,6 @@ function confirmReject() {
     var selectedItems = [];
     document.querySelectorAll('.item-checkbox:checked').forEach(cb => selectedItems.push(cb.value));
     
-    // Items မရှိရင် 'all' သုံး
     var rejectedItems = 'all';
     if (selectedItems.length > 0) {
         rejectedItems = selectedItems.join(',');
