@@ -59,7 +59,7 @@ $userStmt->close();
 // Announcements
 $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcementId DESC LIMIT 3");
 
-// Menu Items
+// ✅ Menu Items - Out of Stock ပါ အကုန်ယူ (isAvailable DESC ဖြင့် စီ)
 $menu_query = "SELECT m.*, 
                (SELECT AVG(rating) FROM ratings WHERE itemId = m.itemId) as avg_rating,
                (SELECT COUNT(*) FROM ratings WHERE itemId = m.itemId) as rating_count
@@ -207,9 +207,13 @@ if ($showVoucher) {
             transform: translateY(-3px);
         }
 
+        /* ============================================= */
+        /* 🔲 MENU CARD - EQUAL HEIGHT + GRID FIX        */
+        /* ============================================= */
         .menu-item-card {
             display: flex;
             flex-direction: column;
+            width: 100%;
         }
         
         .menu-card {
@@ -272,68 +276,73 @@ if ($showVoucher) {
             min-height: 28px;
         }
 
-      /* ============================================= */
-/* 🔴 OUT OF STOCK OVERLAY                        */
-/* ============================================= */
-.menu-card.out-of-stock {
-    position: relative;
-}
+        .menu-card .rating-box {
+            min-height: 20px;
+            margin-bottom: 8px;
+        }
 
-.menu-card.out-of-stock .menu-card-img {
-    filter: grayscale(50%) brightness(0.85);
-}
+        /* ============================================= */
+        /* 🔴 OUT OF STOCK OVERLAY (Box ထဲမှာပဲ နေရာယူ)  */
+        /* ============================================= */
+        .menu-card.out-of-stock {
+            position: relative;
+        }
 
-.menu-card.out-of-stock .stock-overlay {
-    display: flex;
-}
+        .menu-card.out-of-stock .menu-card-img {
+            filter: grayscale(50%) brightness(0.85);
+        }
 
-.stock-overlay {
-    display: none;
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 35%;
-    bottom: 0;
-    background: linear-gradient(180deg, 
-        rgba(220, 38, 38, 0) 0%, 
-        rgba(220, 38, 38, 0.35) 25%,
-        rgba(220, 38, 38, 0.75) 55%, 
-        rgba(185, 28, 28, 0.98) 100%);
-    z-index: 5;
-    align-items: flex-end;
-    justify-content: center;
-    padding-bottom: 80px;
-    pointer-events: none;
-    border-radius: 0 0 20px 20px;
-}
+        .menu-card.out-of-stock .stock-overlay {
+            display: flex;
+        }
 
-.stock-overlay-text {
-    color: #FFFFFF;
-    font-weight: 800;
-    font-size: clamp(1.1rem, 2.8vw, 1.5rem);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
-    animation: stockPulse 2s ease-in-out infinite;
-}
+        .stock-overlay {
+            display: none;
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 30%;
+            bottom: 0;
+            background: linear-gradient(180deg, 
+                rgba(220, 38, 38, 0) 0%, 
+                rgba(220, 38, 38, 0.35) 25%,
+                rgba(220, 38, 38, 0.75) 55%, 
+                rgba(185, 28, 28, 0.98) 100%);
+            z-index: 5;
+            align-items: flex-end;
+            justify-content: center;
+            padding-bottom: 70px;
+            pointer-events: none;
+            border-radius: 0 0 20px 20px;
+        }
 
-@keyframes stockPulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.85; transform: scale(1.03); }
-}
+        .stock-overlay-text {
+            color: #FFFFFF;
+            font-weight: 800;
+            font-size: clamp(1rem, 2.5vw, 1.35rem);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+            animation: stockPulse 2s ease-in-out infinite;
+        }
 
-.menu-card.out-of-stock .btn-out-of-stock {
-    background: #6B7280 !important;
-    color: #FFFFFF !important;
-    cursor: not-allowed !important;
-    opacity: 1 !important;
-    border: none;
-}
+        @keyframes stockPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.85; transform: scale(1.03); }
+        }
 
-.menu-card.out-of-stock .btn-out-of-stock:hover {
-    transform: none !important;
-    box-shadow: none !important;
-}
+        .menu-card.out-of-stock .btn-out-of-stock {
+            background: #6B7280 !important;
+            color: #FFFFFF !important;
+            cursor: not-allowed !important;
+            opacity: 1 !important;
+            border: none;
+        }
+
+        .menu-card.out-of-stock .btn-out-of-stock:hover {
+            transform: none !important;
+            box-shadow: none !important;
+        }
 
         .like-btn {
             background: rgba(255, 255, 255, 0.85);
@@ -995,6 +1004,11 @@ if ($showVoucher) {
             box-shadow: 0 4px 12px rgba(30, 175, 189, 0.4);
         }
 
+        /* ============================================= */
+        /* 📱 RESPONSIVE - 4 Columns Default             */
+        /* ============================================= */
+        
+        /* Mobile - 2 columns */
         @media (max-width: 576px) {
             body { font-size: 14px; }
             .container { padding-left: 12px; padding-right: 12px; }
@@ -1012,26 +1026,32 @@ if ($showVoucher) {
             }
             .chatbot-toggle-btn { width: 54px; height: 54px; font-size: 22px; }
             .message-bubble { max-width: 85%; }
+            .stock-overlay { padding-bottom: 60px; }
         }
 
+        /* Tablet - 3 columns */
         @media (min-width: 577px) and (max-width: 992px) {
             .ai-suggestions-grid { grid-template-columns: repeat(3, 1fr); }
         }
 
+        /* Desktop - 4 columns */
         @media (min-width: 993px) and (max-width: 1399px) {
             .ai-suggestions-grid { grid-template-columns: repeat(4, 1fr); }
         }
 
+        /* ✅ Large Screen - 4 columns STRICT */
         @media (min-width: 1400px) {
             #menuContainer {
-                display: grid;
-                grid-template-columns: repeat(4, 1fr);
-                gap: 16px;
+                display: grid !important;
+                grid-template-columns: repeat(4, 1fr) !important;
+                gap: 16px !important;
             }
             #menuContainer .menu-item-card {
-                width: 100%;
-                max-width: 100%;
-                flex: none;
+                width: 100% !important;
+                max-width: 100% !important;
+                flex: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
             }
         }
 
@@ -1226,35 +1246,36 @@ if ($showVoucher) {
         <?php endforeach; ?>
     </div>
 
+    <!-- ✅ Menu Container - Grid Layout -->
     <div class="row g-2 g-md-3" id="menuContainer">
         <?php if ($menu_items && $menu_items->num_rows > 0): ?>
             <?php while ($item = $menu_items->fetch_assoc()): ?>
                 
-             <?php 
-    $imgPath = 'https://via.placeholder.com/300x200?text=No+Image';
-    if (!empty($item['image'])) {
-        if (file_exists($item['image'])) {
-            $imgPath = $item['image'];
-        } elseif (file_exists('uploads/' . basename($item['image']))) {
-            $imgPath = 'uploads/' . basename($item['image']);
-        }
-    }
+                <?php 
+                    $imgPath = 'https://via.placeholder.com/300x200?text=No+Image';
+                    if (!empty($item['image'])) {
+                        if (file_exists($item['image'])) {
+                            $imgPath = $item['image'];
+                        } elseif (file_exists('uploads/' . basename($item['image']))) {
+                            $imgPath = 'uploads/' . basename($item['image']);
+                        }
+                    }
 
-    $is_liked = in_array($item['itemId'], $user_liked_item_ids);
-    $is_out = ($item['isAvailable'] == 0);
-?>
+                    $is_liked = in_array($item['itemId'], $user_liked_item_ids);
+                    $is_out = ($item['isAvailable'] == 0);
+                ?>
 
                 <div class="col-6 col-sm-6 col-md-4 col-lg-3 menu-item-card" 
                      data-name="<?= htmlspecialchars(mb_strtolower($item['itemName'], 'UTF-8')) ?>"
                      data-category="<?= htmlspecialchars(mb_strtolower($item['category'] ?? '', 'UTF-8')) ?>">
     
-                  <div class="card menu-card <?= $is_out ? 'out-of-stock' : '' ?>">
-    
-    <?php if ($is_out): ?>
-        <div class="stock-overlay">
-            <span class="stock-overlay-text">Out Of Stock</span>
-        </div>
-    <?php endif; ?>
+                    <div class="card menu-card <?= $is_out ? 'out-of-stock' : '' ?>">
+                        
+                        <?php if ($is_out): ?>
+                            <div class="stock-overlay">
+                                <span class="stock-overlay-text">Out Of Stock</span>
+                            </div>
+                        <?php endif; ?>
                         
                         <div class="menu-card-img-wrapper">
                             <div class="position-absolute top-0 end-0 p-2 z-2">
@@ -1262,7 +1283,8 @@ if ($showVoucher) {
                                     <i class="fa-solid fa-heart"></i>
                                 </button>
                             </div>
- <img src="<?= $imgPath ?>" class="menu-card-img" alt="<?= htmlspecialchars($item['itemName']) ?>" data-bs-toggle="modal" data-bs-target="#detailModal<?= $item['itemId'] ?>">                        </div>
+                            <img src="<?= $imgPath ?>" class="menu-card-img" alt="<?= htmlspecialchars($item['itemName']) ?>" data-bs-toggle="modal" data-bs-target="#detailModal<?= $item['itemId'] ?>">
+                        </div>
 
                         <div class="card-body d-flex flex-column">
                             
@@ -1299,19 +1321,20 @@ if ($showVoucher) {
                                 <?php endif; ?>
                             </div>
 
-                           <div class="mt-auto">
-            <?php if ($is_out): ?>
-                <button class="btn btn-out-of-stock btn-sm w-100 py-2 rounded-3 fw-bold" disabled>
-                    <i class="fa-solid fa-ban me-1"></i>Out Of Stock
-                </button>
-            <?php else: ?>
-                <button onclick="addToCart(<?= $item['itemId'] ?>)" class="btn btn-brand btn-sm w-100 py-2 rounded-3 fw-medium">
-                    <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
-                </button>
-            <?php endif; ?>
-        </div>
-    </div>
-</div>
+                            <div class="mt-auto">
+                                <?php if ($is_out): ?>
+                                    <button class="btn btn-out-of-stock btn-sm w-100 py-2 rounded-3 fw-bold" disabled>
+                                        <i class="fa-solid fa-ban me-1"></i>Out Of Stock
+                                    </button>
+                                <?php else: ?>
+                                    <button onclick="addToCart(<?= $item['itemId'] ?>)" class="btn btn-brand btn-sm w-100 py-2 rounded-3 fw-medium">
+                                        <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="modal fade" id="detailModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
@@ -1333,9 +1356,15 @@ if ($showVoucher) {
                                 
                                 <div class="d-flex gap-2">
                                     <button type="button" class="btn btn-light w-50 py-2 rounded-3" data-bs-dismiss="modal">ပိတ်မည်</button>
-                                    <button onclick="addToCart(<?= $item['itemId'] ?>); bootstrap.Modal.getInstance(document.getElementById('detailModal<?= $item['itemId'] ?>')).hide();" class="btn btn-brand w-50 py-2 rounded-3 fw-medium">
-                                        <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
-                                    </button>
+                                    <?php if ($is_out): ?>
+                                        <button class="btn btn-secondary w-50 py-2 rounded-3 fw-medium" disabled>
+                                            <i class="fa-solid fa-ban me-1"></i>Out of Stock
+                                        </button>
+                                    <?php else: ?>
+                                        <button onclick="addToCart(<?= $item['itemId'] ?>); bootstrap.Modal.getInstance(document.getElementById('detailModal<?= $item['itemId'] ?>')).hide();" class="btn btn-brand w-50 py-2 rounded-3 fw-medium">
+                                            <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
+                                        </button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -1420,6 +1449,37 @@ if ($showVoucher) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// =============================================
+// ✅ FORCE 4 COLUMNS ON DESKTOP
+// =============================================
+function applyGridLayout() {
+    const container = document.getElementById('menuContainer');
+    if (!container) return;
+    
+    const width = window.innerWidth;
+    
+    if (width >= 1400) {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        container.style.gap = '16px';
+    } else if (width >= 993) {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(4, 1fr)';
+        container.style.gap = '16px';
+    } else if (width >= 768) {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(3, 1fr)';
+        container.style.gap = '12px';
+    } else {
+        container.style.display = 'grid';
+        container.style.gridTemplateColumns = 'repeat(2, 1fr)';
+        container.style.gap = '8px';
+    }
+}
+
+window.addEventListener('resize', applyGridLayout);
+document.addEventListener('DOMContentLoaded', applyGridLayout);
+
 // =============================================
 // CATEGORY FILTER
 // =============================================
@@ -1859,6 +1919,7 @@ function escapeHtml(text) {
 // PAGE LOAD
 // =============================================
 document.addEventListener('DOMContentLoaded', function() {
+    applyGridLayout();
     setTimeout(loadAIRecommendation, 800);
 });
 </script>
