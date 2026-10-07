@@ -1167,7 +1167,7 @@ if ($showVoucher) {
                     </h6>
                     <p class="ai-subtitle">
                         <i class="fa-solid fa-sparkles me-1"></i>
-                        Personalized for you
+                       Recommendation by Canteen
                     </p>
                 </div>
                 <button class="ai-refresh-btn" onclick="refreshAI()" title="Refresh">
@@ -1248,7 +1248,13 @@ if ($showVoucher) {
                      data-name="<?= htmlspecialchars(mb_strtolower($item['itemName'], 'UTF-8')) ?>"
                      data-category="<?= htmlspecialchars(mb_strtolower($item['category'] ?? '', 'UTF-8')) ?>">
     
-                    <div class="card menu-card">
+                  <div class="card menu-card <?= $is_out ? 'out-of-stock' : '' ?>">
+    
+    <?php if ($is_out): ?>
+        <div class="stock-overlay">
+            <span class="stock-overlay-text">Out Of Stock</span>
+        </div>
+    <?php endif; ?>
                         
                         <div class="menu-card-img-wrapper">
                             <div class="position-absolute top-0 end-0 p-2 z-2">
@@ -1256,8 +1262,7 @@ if ($showVoucher) {
                                     <i class="fa-solid fa-heart"></i>
                                 </button>
                             </div>
-                            <img src="<?= $imgPath ?>" class="menu-card-img" alt="<?= htmlspecialchars($item['itemName']) ?>" data-bs-toggle="modal" data-bs-target="#detailModal<?= $item['itemId'] ?>">
-                        </div>
+ <img src="<?= $imgPath ?>" class="menu-card-img" alt="<?= htmlspecialchars($item['itemName']) ?>" data-bs-toggle="modal" data-bs-target="#detailModal<?= $item['itemId'] ?>">                        </div>
 
                         <div class="card-body d-flex flex-column">
                             
@@ -1294,14 +1299,19 @@ if ($showVoucher) {
                                 <?php endif; ?>
                             </div>
 
-                            <div class="mt-auto">
-                                <button onclick="addToCart(<?= $item['itemId'] ?>)" class="btn btn-brand btn-sm w-100 py-2 rounded-3 fw-medium">
-                                    <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                           <div class="mt-auto">
+            <?php if ($is_out): ?>
+                <button class="btn btn-out-of-stock btn-sm w-100 py-2 rounded-3 fw-bold" disabled>
+                    <i class="fa-solid fa-ban me-1"></i>Out Of Stock
+                </button>
+            <?php else: ?>
+                <button onclick="addToCart(<?= $item['itemId'] ?>)" class="btn btn-brand btn-sm w-100 py-2 rounded-3 fw-medium">
+                    <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
+                </button>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
 
                 <div class="modal fade" id="detailModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true">
                     <div class="modal-dialog modal-dialog-centered">
