@@ -181,9 +181,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // =============================================
 // STATISTICS
-// =============================================
-$totalPoints = $conn->query("SELECT SUM(points) as totalPoints FROM users")->fetch_assoc()['totalPoints'] ?? 0;
-$totalPointsUsed = $conn->query("SELECT SUM(points_used) as todayPoints FROM orders WHERE DATE(createdAt) = CURDATE()")->fetch_assoc()['todayPoints'] ?? 0;
+
+// ✅ 7-Day Points (User တွေကို ရောင်းထားတဲ့ Point)
+Total Points("
+    SELECT COALESCE(SUM(points_used), 0) as totalPoints 
+    FROM orders 
+    WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    AND status NOT IN ('rejected')
+")->fetch_assoc()['totalPoints'] ?? 0;
+
+// ✅ Today's Points
+$totalPointsUsed = $conn->query("
+    SELECT COALESCE(SUM(points_used), 0) as todayPoints 
+    FROM orders 
+    WHERE DATE(createdAt) = CURDATE()
+    AND status NOT IN ('rejected')
+")->fetch_assoc()['todayPoints'] ?? 0;
 
 $status_result = $conn->query("SELECT status, COUNT(*) as count FROM orders GROUP BY status");
 $orderStatusCounts = [];
@@ -252,8 +265,7 @@ $orders_result = $conn->query($orders_query);
 if ($isAjax) {
     ?>
     <div class="row g-3 mb-4">
-        <div class="col-md-3"><div class="stat-card"><div class="stat-label">Total Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
-        <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
+<div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7-Day Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>        <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">Active Orders</div><div class="stat-number text-dark" data-stat="activeOrders"><?= $activeOrders ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">Top Seller</div><div class="stat-number fs-3 text-dark text-truncate" data-stat="topSeller"><?= htmlspecialchars($topSeller) ?></div></div></div>
     </div>
