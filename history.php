@@ -15,13 +15,16 @@ $user_id = $_SESSION['user_id'];
 $isAjax = isset($_GET['ajax']) && $_GET['ajax'] == '1';
 
 // =============================================
-// HANDLE CANCEL ORDER (with Delivery Fee Refund)
+// ✅ HANDLE PARTIAL CANCEL ORDER
 // =============================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cancel_order') {
     header('Content-Type: application/json');
     
     $orderId = intval($_POST['orderId']);
+    $cancelItems = $_POST['cancel_items'] ?? '';
+    $cancelReason = trim($_POST['cancel_reason'] ?? 'User cancelled');
     
+    // ✅ Check Order
     $checkStmt = $conn->prepare("SELECT points_used, status, orderType, deliveryFee FROM orders WHERE orderId = ? AND userId = ?");
     $checkStmt->bind_param("ii", $orderId, $user_id);
     $checkStmt->execute();
@@ -38,22 +41,77 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         exit();
     }
     
-    // ✅ Point + Delivery Fee ပြန်အမ်း
-    $refundAmount = $orderData['points_used'];
+    // ✅ Get all items in order
+    $itemsStmt = $conn->prepare("SELECT oi.itemId, oi.quantity, oi.price, m.itemName FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = ?");
+    $itemsStmt->bind_param("i", $orderId);
+    $itemsStmt->execute();
+    $itemsResult = $itemsStmt->get_result();
+    $allItems = [];
+    while ($row = $itemsResult->fetch_assoc()) {
+        $allItems[] = $row;
+    }
+    $itemsStmt->close();
     
-    $refundStmt = $conn->prepare("UPDATE users SET points = points + ? WHERE userId = ?");
-    $refundStmt->bind_param("ii", $refundAmount, $user_id);
-    $refundStmt->execute();
-    $refundStmt->close();
+    $totalItems = count($allItems);
     
-    $cancelStmt = $conn->prepare("UPDATE orders SET status = 'rejected', rejectionReason = 'User cancelled', deliveryStatus = 'pending' WHERE orderId = ?");
-    $cancelStmt->bind_param("i", $orderId);
+    // ✅ Determine which items to cancel
+    $cancelItemIds = [];
+    if (!empty($cancelItems) && $cancelItems !== 'all') {
+        $cancelItemIds = explode(',', $cancelItems);
+    } elseif ($cancelItems === 'all') {
+        $cancelItemIds = array_column($allItems, 'itemId');
+    }
+    
+    $cancelCount = count($cancelItemIds);
+    
+    // ✅ Calculate Refund
+    $refundAmount = 0;
+    foreach ($allItems as $item) {
+        if (in_array($item['itemId'], $cancelItemIds)) {
+            $refundAmount += $item['price'] * $item['quantity'];
+        }
+    }
+    
+    // ✅ Determine Final Status
+    if ($cancelCount >= $totalItems && $totalItems > 0) {
+        // All items cancelled
+        $finalStatus = 'rejected';
+        // Include Delivery Fee refund for full cancel
+        if ($orderData['orderType'] === 'delivery' && $orderData['deliveryFee'] > 0) {
+            $refundAmount += $orderData['deliveryFee'];
+        }
+    } elseif ($cancelCount > 0) {
+        // Partial cancel
+        $finalStatus = 'partial_rejected';
+    } else {
+        echo json_encode(['success' => false, 'message' => 'Item မရွေးထားပါ']);
+        exit();
+    }
+    
+    // ✅ Refund Points
+    if ($refundAmount > 0) {
+        $refundStmt = $conn->prepare("UPDATE users SET points = points + ? WHERE userId = ?");
+        $refundStmt->bind_param("ii", $refundAmount, $user_id);
+        $refundStmt->execute();
+        $refundStmt->close();
+    }
+    
+    // ✅ Update Order
+    $newPointsUsed = $orderData['points_used'] - $refundAmount;
+    if ($newPointsUsed < 0) $newPointsUsed = 0;
+    
+    $rejectedItemsStr = implode(',', $cancelItemIds);
+    
+    $cancelStmt = $conn->prepare("UPDATE orders SET status = ?, rejectionReason = ?, rejected_items = ?, points_used = ? WHERE orderId = ?");
+    $cancelStmt->bind_param("sssii", $finalStatus, $cancelReason, $rejectedItemsStr, $newPointsUsed, $orderId);
     $cancelStmt->execute();
     $cancelStmt->close();
     
     echo json_encode([
-        'success' => true, 
-        'message' => 'Order cancelled. ' . number_format($refundAmount) . ' Points ပြန်ရပါပြီ။'
+        'success' => true,
+        'message' => number_format($refundAmount) . ' Points ပြန်အမ်းပြီးပါပြီ။',
+        'refund' => $refundAmount,
+        'status' => $finalStatus
     ]);
     exit();
 }
@@ -137,7 +195,7 @@ if ($like_stmt) {
     $like_stmt->close();
 }
 
-// Fetch Orders
+// Fetch Orders with item details
 $orders = $conn->query("SELECT o.*, 
                         (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ', ') 
                          FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = o.orderId) as items,
@@ -201,6 +259,41 @@ $orders = $conn->query("SELECT o.*,
         .star-rating.rated i { cursor: not-allowed; }
         .star-rating.rated i:hover { transform: none; }
 
+        /* ✅ Cancel Item Checkbox Styles */
+        .cancel-item-row {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border: 1px solid #E2E8F0;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+            background: white;
+        }
+        .cancel-item-row:hover {
+            border-color: var(--brand-color);
+            background: var(--brand-light);
+        }
+        .cancel-item-row input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: var(--brand-color);
+        }
+        .cancel-item-row label {
+            flex: 1;
+            cursor: pointer;
+            margin: 0;
+            font-weight: 500;
+        }
+        .cancel-item-row .item-points {
+            font-weight: 700;
+            color: #ffc107;
+            font-size: 0.9rem;
+        }
+
         <?php if ($isAjax): ?>
         .navbar-custom, .container > .d-flex:first-child { display: none !important; }
         <?php endif; ?>
@@ -216,33 +309,30 @@ $orders = $conn->query("SELECT o.*,
         <div class="collapse navbar-collapse" id="navbarIcons">
             <div class="d-flex align-items-center ms-auto gap-1 mt-3 mt-lg-0 justify-content-around">
                 <a href="index.php" class="nav-icon-btn text-decoration-none"><i class="fa-solid fa-house"></i><span class="d-lg-none ms-2 small">Home</span></a>
-                   <a href="track.php" class="nav-icon-btn text-decoration-none" title="Track Order">
-                        <i class="fa-solid fa-clock-rotate-left"></i>
-                        <span class="d-lg-none ms-2 small">Queue</span>
-                    </a>
+                <a href="track.php" class="nav-icon-btn text-decoration-none" title="Track Order">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <span class="d-lg-none ms-2 small">Queue</span>
+                </a>
                 <a href="history.php" class="nav-icon-btn text-decoration-none text-brand"><i class="fa-solid fa-receipt"></i><span class="d-lg-none ms-2 small">History</span></a>
                 <span class="points-nav"><i class="fa-solid fa-coins text-warning"></i><?= number_format($currentPoints) ?></span>
                 <a href="likes.php" class="nav-icon-btn text-decoration-none"><i class="fa-regular fa-heart"></i><span class="badge rounded-pill nav-badge"><?= $like_count ?></span></a>
                 <a href="cart.php" class="nav-icon-btn text-decoration-none"><i class="fa-solid fa-cart-shopping"></i><span class="badge rounded-pill nav-badge"><?= $cart_count ?></span></a>
-                <!-- ============================================= -->
-                    <!-- USER DROPDOWN                                -->
-                    <!-- ============================================= -->
-                    <div class="dropdown ms-lg-2">
-                        <a href="#" class="nav-icon-btn text-decoration-none d-flex align-items-center gap-2" data-bs-toggle="dropdown">
-                            <i class="fa-regular fa-user-circle fs-5"></i>
-                            <span class="fw-medium small d-none d-lg-inline"><?= htmlspecialchars($_SESSION['username'] ?? 'Account') ?></span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-3 mt-2">
-                            <?php if (isset($_SESSION['user_id'])): ?>
-                                <li><a class="dropdown-item py-2" href="profile.php"><i class="fa-regular fa-id-card me-2 text-brand"></i>Profile</a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item py-2 text-danger" href="logout.php"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</a></li>
-                            <?php else: ?>
-                                <li><a class="dropdown-item py-2" href="login.php"><i class="fa-solid fa-right-to-bracket me-2 text-brand"></i>Login</a></li>
-                                <li><a class="dropdown-item py-2" href="register.php"><i class="fa-solid fa-user-plus me-2 text-brand"></i>Register</a></li>
-                            <?php endif; ?>
-                        </ul>
-                    </div>
+                <div class="dropdown ms-lg-2">
+                    <a href="#" class="nav-icon-btn text-decoration-none d-flex align-items-center gap-2" data-bs-toggle="dropdown">
+                        <i class="fa-regular fa-user-circle fs-5"></i>
+                        <span class="fw-medium small d-none d-lg-inline"><?= htmlspecialchars($_SESSION['username'] ?? 'Account') ?></span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg rounded-3 mt-2">
+                        <?php if (isset($_SESSION['user_id'])): ?>
+                            <li><a class="dropdown-item py-2" href="profile.php"><i class="fa-regular fa-id-card me-2 text-brand"></i>Profile</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item py-2 text-danger" href="logout.php"><i class="fa-solid fa-right-from-bracket me-2"></i>Logout</a></li>
+                        <?php else: ?>
+                            <li><a class="dropdown-item py-2" href="login.php"><i class="fa-solid fa-right-to-bracket me-2 text-brand"></i>Login</a></li>
+                            <li><a class="dropdown-item py-2" href="register.php"><i class="fa-solid fa-user-plus me-2 text-brand"></i>Register</a></li>
+                        <?php endif; ?>
+                    </ul>
+                </div>
             </div>
         </div>
     </div>
@@ -293,6 +383,17 @@ $orders = $conn->query("SELECT o.*,
                     if ($isRejected) $rejectedItems[] = $item;
                 }
             }
+            
+            // ✅ Get items for cancel modal
+            $ordItemsStmt = $conn->prepare("SELECT oi.itemId, oi.quantity, oi.price, m.itemName FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = ?");
+            $ordItemsStmt->bind_param("i", $ord['orderId']);
+            $ordItemsStmt->execute();
+            $ordItemsResult = $ordItemsStmt->get_result();
+            $ordItemsList = [];
+            while ($r = $ordItemsResult->fetch_assoc()) {
+                $ordItemsList[] = $r;
+            }
+            $ordItemsStmt->close();
         ?>
             <div class="history-card p-3 p-md-4 mb-3" data-order-card="<?= $ord['orderId'] ?>">
                 
@@ -302,7 +403,7 @@ $orders = $conn->query("SELECT o.*,
                             <span class="badge bg-dark text-white fw-bold"><?= $ord['queue_number'] ?></span>
                             <span class="badge <?= $badgeClass ?> text-uppercase" data-order-status="<?= $ord['orderId'] ?>"><?= $ord['status'] ?></span>
                             <?php if ($ord['orderType'] === 'delivery'): ?>
-                                <span class="badge bg-warning text-dark"><i class="fa-solid fa-motorcycle"></i> Delivery</span>
+                                <span class="badge bg-warning text-dark"><i class="fa-solid fa-box"></i> Delivery</span>
                             <?php endif; ?>
                         </div>
                         <div class="small text-muted">
@@ -344,7 +445,7 @@ $orders = $conn->query("SELECT o.*,
                         ?>
                             <span class="item <?= $isRejected ? 'rejected' : 'accepted' ?>">
                                 <?php if ($isRejected): ?>
-                                    <span class="rejected-item"><i class="fa-solid fa-circle-xmark me-1"></i><?= htmlspecialchars($item) ?><span class="reject-badge">REJECTED</span></span>
+                                    <span class="rejected-item"><i class="fa-solid fa-circle-xmark me-1"></i><?= htmlspecialchars($item) ?><span class="reject-badge">CANCELLED</span></span>
                                 <?php else: ?>
                                     <span class="accepted-item"><i class="fa-solid fa-circle-check me-1"></i><?= htmlspecialchars($item) ?><span class="accept-badge">ACCEPTED</span></span>
                                 <?php endif; ?>
@@ -359,31 +460,30 @@ $orders = $conn->query("SELECT o.*,
                 
                 <?php if ($st === 'partial_rejected'): ?>
                     <div class="partial-reject-box mt-2">
-                        <small class="text-warning fw-bold d-block"><i class="fa-solid fa-triangle-exclamation me-1"></i>Partially Rejected</small>
+                        <small class="text-warning fw-bold d-block"><i class="fa-solid fa-triangle-exclamation me-1"></i>Partially Cancelled</small>
                         <?php if (!empty($ord['rejectionReason'])): ?>
                             <div class="mt-1 pt-1 border-top"><small class="text-muted">Reason: <?= htmlspecialchars($ord['rejectionReason']) ?></small></div>
                         <?php endif; ?>
                     </div>
                 <?php elseif ($st === 'rejected' && !empty($ord['rejectionReason'])): ?>
                     <div class="reject-reason-box mt-2">
-                        <small class="text-danger fw-bold d-block"><i class="fa-solid fa-circle-exclamation me-1"></i>Rejected</small>
+                        <small class="text-danger fw-bold d-block"><i class="fa-solid fa-circle-exclamation me-1"></i>Cancelled</small>
                         <span class="text-dark"><?= htmlspecialchars($ord['rejectionReason']) ?></span>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($st === 'ordered'): ?>
                     <div class="mt-3 pt-3 border-top cancel-section" data-cancel-section="<?= $ord['orderId'] ?>">
-                        <button class="btn btn-sm btn-outline-danger rounded-3" onclick="cancelOrder(<?= $ord['orderId'] ?>)">
-                            <i class="fa-solid fa-xmark me-1"></i>Cancel Order
+                        <button class="btn btn-sm btn-outline-danger rounded-3" onclick='openCancelModal(<?= $ord["orderId"] ?>, <?= json_encode($ordItemsList) ?>)'>
+                            <i class="fa-solid fa-xmark me-1"></i>Cancel Items
                         </button>
                     </div>
                 <?php endif; ?>
 
-                <!-- ✅ Track Delivery Button -->
                 <?php if ($ord['orderType'] === 'delivery' && in_array($st, ['cooking', 'pickup'])): ?>
                     <div class="mt-3">
                         <a href="track_delivery.php?orderId=<?= $ord['orderId'] ?>" class="btn btn-sm btn-warning rounded-3">
-                            <i class="fa-solid fa-motorcycle me-1"></i>Track Delivery 🛵
+                            <i class="fa-solid fa-box me-1"></i>Track Delivery 📦
                         </a>
                     </div>
                 <?php endif; ?>
@@ -427,38 +527,186 @@ $orders = $conn->query("SELECT o.*,
 
 </div>
 
+<!-- ✅ CANCEL ITEMS MODAL -->
+<div class="modal fade" id="cancelItemsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-light border-0">
+                <h6 class="fw-bold m-0">
+                    <i class="fa-solid fa-xmark-circle text-danger me-2"></i>Cancel Items
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="alert alert-warning small mb-3">
+                    <i class="fa-solid fa-info-circle me-1"></i>
+                    Cancel လုပ်လိုသော ပစ္စည်းများကို ရွေးပါ။ Points ပြန်အမ်းပေးပါမည်။
+                </div>
+                
+                <!-- Select All -->
+                <div class="cancel-item-row border-2" style="border-color: var(--brand-color); background: var(--brand-light);">
+                    <input type="checkbox" id="selectAllCancel" onchange="toggleAllCancelItems()">
+                    <label for="selectAllCancel" class="fw-bold">အားလုံး ရွေးမည်</label>
+                </div>
+                
+                <!-- Item List -->
+                <div id="cancelItemsList"></div>
+                
+                <!-- Reason -->
+                <div class="mt-3">
+                    <label class="form-label small fw-bold">Cancel Reason</label>
+                    <textarea id="cancelReason" class="form-control rounded-3" rows="2" placeholder="ဥပမာ - မလိုအပ်တော့ပါ...">မလိုအပ်တော့ပါ</textarea>
+                </div>
+                
+                <!-- Refund Summary -->
+                <div class="alert alert-success mt-3 mb-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="fw-bold">Refund Points:</span>
+                        <span class="fw-bold fs-5" id="refundAmount">0</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 bg-light">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">မလုပ်တော့ပါ</button>
+                <button type="button" class="btn btn-danger btn-sm rounded-3 px-4 fw-bold" id="confirmCancelBtn" onclick="confirmPartialCancel()">
+                    <i class="fa-solid fa-xmark me-1"></i>Cancel Selected
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-function cancelOrder(orderId) {
+// =============================================
+// ✅ PARTIAL CANCEL MODAL
+// =============================================
+let currentCancelOrderId = 0;
+let currentCancelItems = [];
+let cancelModal = null;
+
+function openCancelModal(orderId, items) {
+    currentCancelOrderId = orderId;
+    currentCancelItems = items;
+    
+    const listContainer = document.getElementById('cancelItemsList');
+    listContainer.innerHTML = '';
+    
+    items.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        const div = document.createElement('div');
+        div.className = 'cancel-item-row';
+        div.innerHTML = `
+            <input type="checkbox" class="cancel-checkbox" 
+                   value="${item.itemId}" 
+                   data-price="${itemTotal}"
+                   onchange="updateRefundTotal()">
+            <label>
+                ${item.itemName} (x${item.quantity})
+            </label>
+            <span class="item-points">${Number(itemTotal).toLocaleString()} pts</span>
+        `;
+        listContainer.appendChild(div);
+    });
+    
+    // Reset
+    document.getElementById('selectAllCancel').checked = false;
+    document.getElementById('cancelReason').value = 'မလိုအပ်တော့ပါ';
+    document.getElementById('refundAmount').textContent = '0';
+    
+    cancelModal = new bootstrap.Modal(document.getElementById('cancelItemsModal'));
+    cancelModal.show();
+}
+
+function toggleAllCancelItems() {
+    const checked = document.getElementById('selectAllCancel').checked;
+    document.querySelectorAll('.cancel-checkbox').forEach(cb => {
+        cb.checked = checked;
+    });
+    updateRefundTotal();
+}
+
+function updateRefundTotal() {
+    let total = 0;
+    document.querySelectorAll('.cancel-checkbox:checked').forEach(cb => {
+        total += parseFloat(cb.getAttribute('data-price'));
+    });
+    document.getElementById('refundAmount').textContent = Number(total).toLocaleString();
+    
+    // Update Select All
+    const all = document.querySelectorAll('.cancel-checkbox');
+    const checked = document.querySelectorAll('.cancel-checkbox:checked');
+    document.getElementById('selectAllCancel').checked = (all.length === checked.length && all.length > 0);
+}
+
+function confirmPartialCancel() {
+    const selected = [];
+    document.querySelectorAll('.cancel-checkbox:checked').forEach(cb => {
+        selected.push(cb.value);
+    });
+    
+    if (selected.length === 0) {
+        Swal.fire('Item မရွေးထားပါ', 'Cancel လုပ်လိုသော ပစ္စည်း အနည်းဆုံး တစ်ခု ရွေးပါ။', 'warning');
+        return;
+    }
+    
+    const reason = document.getElementById('cancelReason').value.trim() || 'မလိုအပ်တော့ပါ';
+    const refundAmount = document.getElementById('refundAmount').textContent;
+    
     Swal.fire({
-        title: 'Cancel Order?',
-        text: 'Points တွေ ပြန်အမ်းပေးပါမယ်။ (Delivery Fee ပါ)',
+        title: 'Cancel လုပ်မှာ သေချာပါသလား?',
+        html: `<strong>${selected.length}</strong> မျိုး Cancel လုပ်ပါမည်။<br>
+               <span class="text-success fw-bold">${refundAmount} Points ပြန်အမ်းပါမည်။</span>`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#d33',
+        confirmButtonColor: '#dc3545',
         cancelButtonColor: '#6c757d',
-        confirmButtonText: 'Yes, Cancel',
-        cancelButtonText: 'No'
+        confirmButtonText: '✅ Cancel လုပ်မည်',
+        cancelButtonText: 'မလုပ်တော့ပါ'
     }).then((result) => {
         if (result.isConfirmed) {
+            const btn = document.getElementById('confirmCancelBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>Processing...';
+            
+            const formData = new FormData();
+            formData.append('action', 'cancel_order');
+            formData.append('orderId', currentCancelOrderId);
+            formData.append('cancel_items', selected.join(','));
+            formData.append('cancel_reason', reason);
+            
             fetch('history.php', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'action=cancel_order&orderId=' + orderId
+                body: formData
             })
             .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    Swal.fire('Cancelled!', data.message, 'success')
-                        .then(() => location.reload());
+                    if (cancelModal) cancelModal.hide();
+                    Swal.fire({
+                        icon: 'success',
+                        title: '🎉 Cancelled!',
+                        text: data.message,
+                        confirmButtonColor: '#1EAFBD'
+                    }).then(() => location.reload());
                 } else {
                     Swal.fire('Error', data.message, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fa-solid fa-xmark me-1"></i>Cancel Selected';
                 }
+            })
+            .catch(err => {
+                Swal.fire('Error', 'Cannot process. Please try again.', 'error');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-xmark me-1"></i>Cancel Selected';
             });
         }
     });
 }
 
+// =============================================
+// STAR RATING
+// =============================================
 function bindStarRating() {
     document.querySelectorAll('.star-rating:not(.rated)').forEach(function(container) {
         if (container.dataset.bound) return;
@@ -542,6 +790,9 @@ function bindStarRating() {
 
 bindStarRating();
 
+// =============================================
+// AUTO REFRESH
+// =============================================
 let isRefreshing = false;
 
 function checkForUpdates() {
@@ -591,7 +842,7 @@ function checkForUpdates() {
 
 document.addEventListener('DOMContentLoaded', function() {
     checkForUpdates();
-    setInterval(checkForUpdates, 300);
+    setInterval(checkForUpdates, 3000);
 });
 
 document.addEventListener('visibilitychange', function() {
