@@ -44,99 +44,86 @@ while ($row = $itemsResult->fetch_assoc()) {
 }
 
 // =============================================
-// ✅ HELPER: LEVENSHTEIN SIMILARITY (Myanmar Support)
+// ✅ HELPER: SIMILARITY (Myanmar Support)
 // =============================================
 function similarity($a, $b) {
     $a = mb_strtolower($a, 'UTF-8');
     $b = mb_strtolower($b, 'UTF-8');
     
-    // Check if one contains the other
     if (mb_strpos($a, $b) !== false || mb_strpos($b, $a) !== false) {
         return 100;
     }
     
-    // Calculate using similar_text
     similar_text($a, $b, $percent);
     return $percent;
 }
 
 // =============================================
-// ✅ HELPER: FORMAT ITEM LIST
+// ✅ HELPER: FORMAT ITEM DETAILS
 // =============================================
-function formatItemList($items, $userPoints) {
-    $output = "";
-    foreach ($items as $item) {
-        $afford = ($userPoints >= $item['points']) ? '✅' : '❌';
-        $output .= "{$afford} <strong>" . htmlspecialchars($item['itemName']) . "</strong><br>";
-        $output .= "&nbsp;&nbsp;&nbsp;💰 " . number_format($item['points']) . " pts";
-        if (!empty($item['category'])) {
-            $output .= " &nbsp; <span style='color: #64748B; font-size: 0.85em;'>[" . htmlspecialchars($item['category']) . "]</span>";
-        }
-        $output .= "<br><br>";
+function formatItemDetail($item, $userPoints) {
+    $itemName = htmlspecialchars($item['itemName']);
+    $itemPoints = number_format($item['points']);
+    $category = htmlspecialchars($item['category']);
+    $specialNote = !empty($item['special_note']) ? htmlspecialchars($item['special_note']) : '';
+    $canAfford = ($userPoints >= $item['points']);
+    
+    $output = "🍽️ <strong>{$itemName}</strong><br><br>";
+    $output .= "📂 Category: <strong>{$category}</strong><br>";
+    $output .= "💰 ဈေးနှုန်း: <strong>{$itemPoints} Points</strong><br>";
+    
+    if ($specialNote) {
+        $output .= "📝 <strong>မှတ်ချက်:</strong> {$specialNote}<br>";
     }
+    
+    $output .= "<br>";
+    if ($canAfford) {
+        $output .= "✅ <strong>သင့်မှာ ဝယ်လို့ရပါတယ်!</strong><br>";
+        $output .= "💰 သင့် Point: " . number_format($userPoints) . "<br>";
+        $output .= "💵 ကျန်မယ့် Point: <strong>" . number_format($userPoints - $item['points']) . "</strong>";
+    } else {
+        $output .= "❌ <strong>Point မလုံလောက်ပါ။</strong><br>";
+        $output .= "💰 သင့် Point: " . number_format($userPoints) . "<br>";
+        $output .= "📉 လိုအပ်သေးတာ: <strong>" . number_format($item['points'] - $userPoints) . " Points</strong>";
+    }
+    
     return $output;
 }
 
 // =============================================
-// ✅ 1. CHECK FOR SPECIFIC ITEM MENTIONED
+// ✅ 1. FIND ITEM IN MESSAGE (No Price Keyword Needed)
 // =============================================
 $matchedItem = null;
 $partialMatches = [];
 
 foreach ($allItems as $item) {
     $itemNameLower = mb_strtolower($item['itemName'], 'UTF-8');
-    $sim = similarity($msg, $itemNameLower);
     
-    // Exact match (user typed item name)
-    if (mb_strpos($msg, $itemNameLower) !== false || mb_strpos($itemNameLower, $msg) !== false) {
+    // ✅ Exact/Contains Match
+    if (mb_strpos($msg, $itemNameLower) !== false) {
         $matchedItem = $item;
         break;
     }
     
-    // Partial match (similarity >= 50%)
+    // ✅ Partial Match (50%+ similarity)
+    $sim = similarity($msg, $itemNameLower);
     if ($sim >= 50) {
         $partialMatches[] = ['item' => $item, 'score' => $sim];
     }
 }
 
 // =============================================
-// ✅ 2. SPECIFIC ITEM QUESTION
+// ✅ 2. IF EXACT ITEM FOUND - SHOW DIRECTLY
 // =============================================
-$isPriceQuestion = preg_match('/ဘယ်လောက်|ဈေး|points|point|ဆိုင်း|how much|price|ဘယ်|ရှိလား|ရှိလား/i', $msg);
-
-if ($matchedItem && $isPriceQuestion) {
-    $itemName = htmlspecialchars($matchedItem['itemName']);
-    $itemPoints = number_format($matchedItem['points']);
-    $category = htmlspecialchars($matchedItem['category']);
-    $specialNote = !empty($matchedItem['special_note']) ? htmlspecialchars($matchedItem['special_note']) : '';
-    $canAfford = ($userPoints >= $matchedItem['points']);
-    
-    $response = "🍽️ <strong>{$itemName}</strong><br><br>";
-    $response .= "📂 Category: <strong>{$category}</strong><br>";
-    $response .= "💰 ဈေးနှုန်း: <strong>{$itemPoints} Points</strong><br>";
-    
-    if ($specialNote) {
-        $response .= "📝 <strong>မှတ်ချက်:</strong> {$specialNote}<br>";
-    }
-    
-    $response .= "<br>";
-    if ($canAfford) {
-        $response .= "✅ <strong>သင့်မှာ ဝယ်လို့ရပါတယ်!</strong><br>";
-        $response .= "💰 သင့် Point: " . number_format($userPoints) . "<br>";
-        $response .= "💵 ကျန်မယ့် Point: <strong>" . number_format($userPoints - $matchedItem['points']) . "</strong>";
-    } else {
-        $response .= "❌ <strong>Point မလုံလောက်ပါ။</strong><br>";
-        $response .= "💰 သင့် Point: " . number_format($userPoints) . "<br>";
-        $response .= "📉 လိုအပ်သေးတာ: <strong>" . number_format($matchedItem['points'] - $userPoints) . " Points</strong>";
-    }
-    
+if ($matchedItem) {
+    $response = formatItemDetail($matchedItem, $userPoints);
     $quickReplies = ["မှာယူမည်", "Menu ကြည့်မည်", "Help"];
 }
 
 // =============================================
-// ✅ 3. PARTIAL MATCH - SHOW SIMILAR ITEMS
+// ✅ 3. IF PARTIAL MATCHES - SHOW SIMILAR
 // =============================================
-elseif (count($partialMatches) > 0 && $isPriceQuestion) {
+elseif (count($partialMatches) > 0) {
     usort($partialMatches, function($a, $b) {
         return $b['score'] - $a['score'];
     });
@@ -159,63 +146,7 @@ elseif (count($partialMatches) > 0 && $isPriceQuestion) {
 }
 
 // =============================================
-// ✅ 4. USER MENTIONS POINTS - SHOW ITEMS THEY CAN AFFORD
-// =============================================
-elseif (preg_match('/(\d{3,})/', $msg, $matches) && preg_match('/ဘာစား|what.*eat|suggest|အကြံပြု|ဘာဝယ်|ဘာရ|ရှိလား|ပြပါ|show/i', $msg)) {
-    $askedPoints = intval($matches[1]);
-    $usePoints = $askedPoints > 0 ? $askedPoints : $userPoints;
-    
-    $result = $conn->query("
-        SELECT itemName, category, points 
-        FROM menu_items 
-        WHERE isAvailable = 1 AND points <= $usePoints 
-        ORDER BY points DESC
-    ");
-    
-    $affordableItems = [];
-    while ($row = $result->fetch_assoc()) {
-        $affordableItems[] = $row;
-    }
-    
-    if (count($affordableItems) > 0) {
-        $response = "💰 <strong>{$usePoints} Points</strong> အောက် ဝယ်လို့ရတဲ့ Item <strong>" . count($affordableItems) . " မျိုး</strong>:<br><br>";
-        $response .= formatItemList($affordableItems, $usePoints);
-    } else {
-        $response = "😔 <strong>{$usePoints} Points</strong> နဲ့ ဝယ်လို့ရတဲ့ Item မရှိပါ။<br><br>💡 <strong>Point ပိုဖြည့်ပြီး</strong> မှာပါ။";
-    }
-    
-    $quickReplies = ["Menu ကြည့်မည်", "ဈေးအချိုသာဆုံးက ဘာလဲ?", "Top Seller ဘာလဲ?"];
-}
-
-// =============================================
-// ✅ 5. "MY POINTS - WHAT CAN I EAT?"
-// =============================================
-elseif (preg_match('/ငါ့.*point.*ဘာစား|my point.*eat|point နဲ့ ဘာစား|ငါ့ point|ငါ့ပွိုင့်/i', $msg) && preg_match('/ဘာစား|what|eat|suggest|အကြံပြု/i', $msg)) {
-    $result = $conn->query("
-        SELECT itemName, category, points 
-        FROM menu_items 
-        WHERE isAvailable = 1 AND points <= $userPoints 
-        ORDER BY points DESC
-    ");
-    
-    $affordableItems = [];
-    while ($row = $result->fetch_assoc()) {
-        $affordableItems[] = $row;
-    }
-    
-    if (count($affordableItems) > 0) {
-        $response = "💰 သင့်မှာ <strong>" . number_format($userPoints) . " Points</strong> ရှိပါတယ်။<br><br>";
-        $response .= "🍽️ ဝယ်လို့ရတဲ့ Item <strong>" . count($affordableItems) . " မျိုး</strong>:<br><br>";
-        $response .= formatItemList($affordableItems, $userPoints);
-    } else {
-        $response = "😔 သင့် Point " . number_format($userPoints) . " နဲ့ ဝယ်လို့ရတဲ့ Item မရှိပါ။";
-    }
-    
-    $quickReplies = ["Menu ကြည့်မည်", "Top Seller ဘာလဲ?", "Help"];
-}
-
-// =============================================
-// ✅ 6. SHOW ALL MENU (FULL LIST)
+// 4. SHOW ALL MENU (FULL LIST)
 // =============================================
 elseif (preg_match('/menu|မီနူး|အစားအသောက်|ဘာတွေရှိလဲ|စာရင်း|list|အကုန်|show.*all|ပြပါ/i', $msg)) {
     $result = $conn->query("
@@ -251,15 +182,15 @@ elseif (preg_match('/menu|မီနူး|အစားအသောက်|ဘာ�
 }
 
 // =============================================
-// 7. POINT မေးခွန်း
+// 5. POINT မေးခွန်း
 // =============================================
 elseif (preg_match('/point|ပွိုင့်|ပိုင်|အမှတ်/i', $msg)) {
     $response = "💰 <strong>{$username}</strong> ရေ၊ သင့်မှာ <strong>" . number_format($userPoints) . " Points</strong> ရှိပါတယ်။";
-    $quickReplies = ["Menu ကြည့်မည်", "ငါ့ Point နဲ့ ဘာစားရမလဲ?", "Order မှာမည်"];
+    $quickReplies = ["Menu ကြည့်မည်", "Order မှာမည်"];
 }
 
 // =============================================
-// 8. TOP SELLER
+// 6. TOP SELLER
 // =============================================
 elseif (preg_match('/top seller|top item|အရောင်းရဆုံး|ရောင်းရဆုံး|best seller|အကောင်းဆုံး/i', $msg)) {
     $result = $conn->query("
@@ -290,7 +221,7 @@ elseif (preg_match('/top seller|top item|အရောင်းရဆုံး|�
 }
 
 // =============================================
-// 9. ဈေးအသက်သာဆုံး
+// 7. ဈေးအသက်သာဆုံး
 // =============================================
 elseif (preg_match('/ဈေးအချိုသာဆုံး|အသက်သာဆုံး|cheapest|ဈေးနည်း|အသက်သာ/i', $msg)) {
     $result = $conn->query("SELECT itemName, points FROM menu_items WHERE isAvailable = 1 ORDER BY points ASC LIMIT 1");
@@ -305,7 +236,7 @@ elseif (preg_match('/ဈေးအချိုသာဆုံး|အသက်သ�
 }
 
 // =============================================
-// 10. ဈေးအကြီးဆုံး
+// 8. ဈေးအကြီးဆုံး
 // =============================================
 elseif (preg_match('/ဈေးအကြီးဆုံး|ဈေးကြီး|expensive|အများဆုံး/i', $msg)) {
     $result = $conn->query("SELECT itemName, points FROM menu_items WHERE isAvailable = 1 ORDER BY points DESC LIMIT 1");
@@ -318,7 +249,7 @@ elseif (preg_match('/ဈေးအကြီးဆုံး|ဈေးကြီး|
 }
 
 // =============================================
-// 11. ORDER မှာနည်း
+// 9. ORDER မှာနည်း
 // =============================================
 elseif (preg_match('/order.*မှာ|မှာယူ|မှာနည်း|ဘယ်လိုမှာ|how.*order/i', $msg)) {
     $response = "📝 Order မှာဖို့ <strong>၃ ဆင့်</strong> ရှိပါတယ်:<br><br>1️⃣ Menu ကနေ ပစ္စည်းရွေးပါ<br>2️⃣ 'မှာယူမည်' ကိုနှိပ်ပါ<br>3️⃣ Cart ထဲဝင်ပြီး Checkout လုပ်ပါ<br><br>ဒါဆို Queue Number ရပါပြီ! 🎫";
@@ -326,7 +257,7 @@ elseif (preg_match('/order.*မှာ|မှာယူ|မှာနည်း|ဘ�
 }
 
 // =============================================
-// 12. CART
+// 10. CART
 // =============================================
 elseif (preg_match('/cart|ဈေးတောင်း|ခြင်းတောင်း/i', $msg)) {
     $stmt = $conn->prepare("
@@ -356,7 +287,7 @@ elseif (preg_match('/cart|ဈေးတောင်း|ခြင်းတော�
 }
 
 // =============================================
-// 13. ဒီနေ့ ဘာစားရမလဲ
+// 11. ဒီနေ့ ဘာစားရမလဲ
 // =============================================
 elseif (preg_match('/ဒီနေ့.*ဘာစား|ဘာစားရမလဲ|suggest|အကြံပြု/i', $msg)) {
     $result = $conn->query("
@@ -379,7 +310,7 @@ elseif (preg_match('/ဒီနေ့.*ဘာစား|ဘာစားရမလ�
 }
 
 // =============================================
-// 14. CATEGORY: Drink
+// 12. CATEGORY: Drink
 // =============================================
 elseif (preg_match('/drink|အချိုရည်|ဖျော်ရည်/i', $msg)) {
     $result = $conn->query("SELECT itemName, points FROM menu_items WHERE isAvailable = 1 AND category = 'Drink' ORDER BY points DESC");
@@ -398,7 +329,7 @@ elseif (preg_match('/drink|အချိုရည်|ဖျော်ရည်/i',
 }
 
 // =============================================
-// 15. CATEGORY: Food
+// 13. CATEGORY: Food
 // =============================================
 elseif (preg_match('/food|အစားအသောက်|ဟင်း|ထမင်း/i', $msg)) {
     $result = $conn->query("SELECT itemName, points FROM menu_items WHERE isAvailable = 1 AND category = 'Food' ORDER BY points DESC");
@@ -417,7 +348,7 @@ elseif (preg_match('/food|အစားအသောက်|ဟင်း|ထမင�
 }
 
 // =============================================
-// 16. CATEGORY: Snack
+// 14. CATEGORY: Snack
 // =============================================
 elseif (preg_match('/snack|မုန့်|အဆာပြေ/i', $msg)) {
     $result = $conn->query("SELECT itemName, points FROM menu_items WHERE isAvailable = 1 AND category = 'Snack' ORDER BY points DESC");
@@ -436,7 +367,7 @@ elseif (preg_match('/snack|မုန့်|အဆာပြေ/i', $msg)) {
 }
 
 // =============================================
-// 17. ORDER အရေအတွက်
+// 15. ORDER အရေအတွက်
 // =============================================
 elseif (preg_match('/order.*ဘယ်နှ|my order|order အရေအတွက်/i', $msg)) {
     $stmt = $conn->prepare("SELECT COUNT(*) as total FROM orders WHERE userId = ?");
@@ -456,7 +387,7 @@ elseif (preg_match('/order.*ဘယ်နှ|my order|order အရေအတွက
 }
 
 // =============================================
-// 18. CANCEL
+// 16. CANCEL
 // =============================================
 elseif (preg_match('/cancel|ဖျက်|ပယ်ဖျက်|မလုပ်တော့/i', $msg)) {
     $response = "❌ Order ကို Cancel လုပ်ဖို့:<br><br>1️⃣ History စာမျက်နှာ သွားပါ<br>2️⃣ Order ကို ရှာပါ<br>3️⃣ 'Cancel Order' ကို နှိပ်ပါ<br><br>⚠️ <strong>Admin က 'Cooking' မပြောင်းမချင်း</strong> ပဲ Cancel လုပ်လို့ရပါတယ်။ Points ပြန်ရပါမယ်။";
@@ -464,7 +395,7 @@ elseif (preg_match('/cancel|ဖျက်|ပယ်ဖျက်|မလုပ်�
 }
 
 // =============================================
-// 19. RATING
+// 17. RATING
 // =============================================
 elseif (preg_match('/rating|rate|အဆင့်သတ်|ကြယ်|star/i', $msg)) {
     $response = "⭐ Rating ပေးဖို့:<br><br>1️⃣ History စာမျက်နှာ သွားပါ<br>2️⃣ Complete ဖြစ်တဲ့ Order ကို ရှာပါ<br>3️⃣ ⭐ ၁ ကနေ ၅ ထိ နှိပ်ပါ<br>4️⃣ Confirm လုပ်ပါ<br><br>⚠️ <strong>တစ်ခါပဲ ပေးလို့ရပါတယ်</strong>၊ ပြန်ပြင်လို့မရပါ။";
@@ -472,7 +403,7 @@ elseif (preg_match('/rating|rate|အဆင့်သတ်|ကြယ်|star/i', 
 }
 
 // =============================================
-// 20. ACCOUNT
+// 18. ACCOUNT
 // =============================================
 elseif (preg_match('/အကောင့်|account|profile|အချက်အလက်|ငါ့အကြောင်း/i', $msg)) {
     $stmt = $conn->prepare("SELECT username, phoneNumber, points, createdAt FROM users WHERE userId = ?");
@@ -486,7 +417,7 @@ elseif (preg_match('/အကောင့်|account|profile|အချက်အလ
 }
 
 // =============================================
-// 21. GREETING
+// 19. GREETING
 // =============================================
 elseif (preg_match('/^(hi|hello|hey|မင်္ဂလာပါ|ဟယ်လို|ဟိုင်း)/i', $msg)) {
     $response = "👋 မင်္ဂလာပါ <strong>" . htmlspecialchars($username) . "</strong>!<br><br>ကျွန်တော် <strong>UCSH Canteen AI</strong> ပါ။<br>ဘာကူညီပေးရမလဲ? 🤖";
@@ -494,7 +425,7 @@ elseif (preg_match('/^(hi|hello|hey|မင်္ဂလာပါ|ဟယ်လိ�
 }
 
 // =============================================
-// 22. THANK YOU
+// 20. THANK YOU
 // =============================================
 elseif (preg_match('/thank|ကျေးဇူး|thanks|thx/i', $msg)) {
     $response = "😊 ကျေးဇူးတင်ပါတယ်!<br>နောက်ထပ် ကူညီဖို့ လိုအပ်ရင် မေးလိုက်ပါ။ 🌟";
@@ -502,7 +433,7 @@ elseif (preg_match('/thank|ကျေးဇူး|thanks|thx/i', $msg)) {
 }
 
 // =============================================
-// 23. BYE
+// 21. BYE
 // =============================================
 elseif (preg_match('/bye|goodbye|သွားတော့|သွားမည်/i', $msg)) {
     $response = "👋 သွားတော့မယ်ဆိုရင် ကျေးဇူးတင်ပါတယ်!<br>နောက်တစ်ခါ ပြန်လာပါ။ 🍽️<br><br>💚 <em>UCSH Canteen မှ ကြိုဆိုပါတယ်</em>";
@@ -510,18 +441,18 @@ elseif (preg_match('/bye|goodbye|သွားတော့|သွားမည်/
 }
 
 // =============================================
-// 24. HELP
+// 22. HELP
 // =============================================
 elseif (preg_match('/help|အကူအညီ|ဘာလုပ်နိုင်/i', $msg)) {
-    $response = "🤖 <strong>ကျွန်တော် ကူညီနိုင်တာများ:</strong><br><br>💰 Point စစ်ဆေးခြင်း<br>🍽️ Menu အားလုံး ကြည့်ခြင်း<br>💸 Item တစ်ခုချင်း ဈေးမေးခြင်း<br>🎯 သင့် Point နဲ့ ဝယ်လို့ရတာ ပြခြင်း<br>📝 Order မှာခြင်း<br>🛒 Cart ကြည့်ခြင်း<br>📋 Order အခြေအနေ<br>🏆 Top Seller ကြည့်ခြင်း<br>❌ Order Cancel<br>⭐ Rating ပေးခြင်း<br><br>💡 <strong>ဥပမာ မေးခွန်းများ:</strong><br>• မာလာရှမ်းကော ဘယ်လောက်လဲ?<br>• ၅၀၀၀ နဲ့ ဘာစားရမလဲ?<br>• Menu ကြည့်မည်";
-    $quickReplies = ["Point ဘယ်လောက်ရှိလဲ?", "Menu ကြည့်မည်", "၅၀၀၀ နဲ့ ဘာစားရမလဲ?"];
+    $response = "🤖 <strong>ကျွန်တော် ကူညီနိုင်တာများ:</strong><br><br>💰 Point စစ်ဆေးခြင်း<br>🍽️ Menu အားလုံး ကြည့်ခြင်း<br>💸 Item တစ်ခုချင်း ဈေးမေးခြင်း<br>📝 Order မှာခြင်း<br>🛒 Cart ကြည့်ခြင်း<br>📋 Order အခြေအနေ<br>🏆 Top Seller ကြည့်ခြင်း<br>❌ Order Cancel<br>⭐ Rating ပေးခြင်း<br><br>💡 <strong>ဥပမာ မေးခွန်းများ:</strong><br>• မာလာရှမ်းကော<br>• Thai Green Tea<br>• Menu ကြည့်မည်";
+    $quickReplies = ["Point ဘယ်လောက်ရှိလဲ?", "Menu ကြည့်မည်", "မာလာရှမ်းကော"];
 }
 
 // =============================================
 // DEFAULT
 // =============================================
 else {
-    $response = "🤔 တောင်းပန်ပါတယ်၊ နားမလည်လိုက်ပါ။<br><br>ဒါတွေ မေးကြည့်ပါ:<br>• Menu ကြည့်မည်<br>• Point ဘယ်လောက်ရှိလဲ?<br>• ၅၀၀၀ နဲ့ ဘာစားရမလဲ?<br>• မာလာရှမ်းကော ဘယ်လောက်လဲ?<br>• Top Seller ဘာလဲ?<br>• Help";
+    $response = "🤔 တောင်းပန်ပါတယ်၊ နားမလည်လိုက်ပါ။<br><br>ဒါတွေ မေးကြည့်ပါ:<br>• Menu ကြည့်မည်<br>• Point ဘယ်လောက်ရှိလဲ?<br>• မာလာရှမ်းကော<br>• Thai Green Tea<br>• Top Seller ဘာလဲ?<br>• Help";
     $quickReplies = ["Menu ကြည့်မည်", "Point ဘယ်လောက်ရှိလဲ?", "Help"];
 }
 
