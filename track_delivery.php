@@ -244,7 +244,6 @@ $waypoints = [];
 if (isset($delivery_locations_map[$deliveryAddr])) {
     $waypoints = $delivery_locations_map[$deliveryAddr]['waypoints'];
 } else {
-    // Default: 8 intermediate points
     $waypoints = [
         [$canteenLat, $canteenLng],
         [$canteenLat + ($destLat - $canteenLat) * 0.15, $canteenLng + ($destLng - $canteenLng) * 0.15],
@@ -293,9 +292,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         .bg-brand { background-color: var(--brand-color) !important; }
         .bg-brand-light { background-color: var(--brand-light) !important; }
         
-        /* ============================================= */
-        /* 📱 RESPONSIVE NAVBAR                           */
-        /* ============================================= */
         .navbar-custom {
             background-color: #FFFFFF;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
@@ -333,9 +329,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             border: 1px solid #fcd34d;
         }
         
-        /* ============================================= */
-        /* 🗺️ MAP                                         */
-        /* ============================================= */
         #trackingMap {
             height: clamp(280px, 45vh, 480px);
             width: 100%;
@@ -345,9 +338,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             z-index: 1;
         }
         
-        /* ============================================= */
-        /* 📦 DELIVERY STATUS CARD                        */
-        /* ============================================= */
         .delivery-status-card {
             background: white;
             border-radius: clamp(12px, 2vw, 20px);
@@ -429,9 +419,9 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         .status-step.completed .status-label { color: #28a745; font-weight: 600; }
         
         /* ============================================= */
-        /* 🛵 BIKE ICON WITH DIRECTION                    */
+        /* 📦 PARCEL BOX ICON (No Direction Issue)        */
         /* ============================================= */
-        .bike-icon-wrapper {
+        .parcel-icon-wrapper {
             position: relative;
             width: clamp(44px, 8vw, 60px);
             height: clamp(44px, 8vw, 60px);
@@ -440,8 +430,8 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             justify-content: center;
         }
         
-        .bike-icon {
-            background: #FFC107;
+        .parcel-icon {
+            background: linear-gradient(135deg, #FFC107 0%, #FF9800 100%);
             color: white;
             width: 100%;
             height: 100%;
@@ -453,26 +443,28 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             box-shadow: 0 6px 20px rgba(255, 193, 7, 0.8);
             border: 3px solid white;
             position: relative;
-            transition: transform 0.6s ease;
+            animation: parcelBounce 1.5s ease-in-out infinite;
         }
         
-        .bike-icon::before {
+        .parcel-icon::before {
             content: '';
             position: absolute;
             inset: -8px;
             border-radius: 50%;
             border: 3px solid rgba(255, 193, 7, 0.5);
-            animation: bikePulse 2s ease-out infinite;
+            animation: parcelPulse 2s ease-out infinite;
         }
         
-        @keyframes bikePulse {
+        @keyframes parcelBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        
+        @keyframes parcelPulse {
             0% { transform: scale(1); opacity: 1; }
             100% { transform: scale(1.5); opacity: 0; }
         }
         
-        /* ============================================= */
-        /* ⏱️ ETA BOX                                     */
-        /* ============================================= */
         .eta-box {
             background: linear-gradient(135deg, #1EAFBD 0%, #0F5860 100%);
             color: white;
@@ -492,9 +484,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             font-size: clamp(0.65rem, 1.5vw, 0.75rem);
         }
         
-        /* ============================================= */
-        /* 📋 INFO CARD                                   */
-        /* ============================================= */
         .delivery-info-card {
             background: white;
             border-radius: clamp(12px, 2vw, 16px);
@@ -502,9 +491,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
         
-        /* ============================================= */
-        /* ✅ RECEIVED BUTTON - RESPONSIVE                */
-        /* ============================================= */
         .btn-received {
             background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
             color: white;
@@ -546,9 +532,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             50% { box-shadow: 0 6px 30px rgba(40, 167, 69, 0.8); }
         }
         
-        /* ============================================= */
-        /* ⏳ WAITING BOX                                 */
-        /* ============================================= */
         .waiting-box {
             background: linear-gradient(135deg, #EBF8F9 0%, #FFFFFF 100%);
             border: 2px dashed #1EAFBD;
@@ -582,9 +565,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             color: #64748B;
         }
         
-        /* ============================================= */
-        /* 📱 RESPONSIVE - MOBILE (≤ 576px)               */
-        /* ============================================= */
         @media (max-width: 576px) {
             .navbar-custom { padding: 8px 0; }
             .nav-icon-btn { font-size: 1rem; padding: 6px 8px; }
@@ -594,16 +574,10 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             .status-label { font-size: 0.55rem; }
         }
         
-        /* ============================================= */
-        /* 📱 RESPONSIVE - TABLET (577px - 992px)         */
-        /* ============================================= */
         @media (min-width: 577px) and (max-width: 992px) {
             #trackingMap { height: 400px; }
         }
         
-        /* ============================================= */
-        /* 💻 RESPONSIVE - DESKTOP (≥ 993px)              */
-        /* ============================================= */
         @media (min-width: 993px) {
             #trackingMap { height: 480px; }
         }
@@ -620,24 +594,22 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
 
 <div class="container my-3 my-md-4" style="max-width: 900px;">
     
-    <!-- Back Button + Title -->
     <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
         <div class="d-flex align-items-center gap-2">
             <a href="history.php" class="btn btn-white border shadow-sm rounded-circle p-2 d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
                 <i class="fa-solid fa-arrow-left text-dark"></i>
             </a>
             <h5 class="fw-bold mb-0 text-dark">
-                <i class="fa-solid fa-motorcycle text-brand me-1"></i>Delivery Tracking
+                <i class="fa-solid fa-box text-brand me-1"></i>Delivery Tracking
             </h5>
         </div>
         <span class="badge bg-dark text-white px-3 py-2"><?= htmlspecialchars($order['queue_number']) ?></span>
     </div>
     
-    <!-- Delivery Status Card -->
     <div class="delivery-status-card">
         <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h6 class="fw-bold mb-0">
-                <i class="fa-solid fa-motorcycle text-brand me-2"></i>
+                <i class="fa-solid fa-box text-brand me-2"></i>
                 Delivery Status
             </h6>
             <span class="badge bg-warning text-dark" id="statusBadge">
@@ -645,7 +617,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
             </span>
         </div>
         
-        <!-- Timeline -->
         <div class="status-timeline">
             <div class="status-step completed">
                 <div class="status-icon"><i class="fa-solid fa-check"></i></div>
@@ -656,7 +627,7 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
                 <div class="status-label">Preparing</div>
             </div>
             <div class="status-step <?= in_array($deliveryStatus, ['on_the_way', 'delivered']) ? ($deliveryStatus === 'on_the_way' ? 'active' : 'completed') : '' ?>">
-                <div class="status-icon"><i class="fa-solid fa-motorcycle"></i></div>
+                <div class="status-icon"><i class="fa-solid fa-box"></i></div>
                 <div class="status-label">On the way</div>
             </div>
             <div class="status-step <?= $deliveryStatus === 'delivered' ? 'completed' : '' ?>">
@@ -679,7 +650,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         </div>
     </div>
     
-    <!-- ETA Box - Only for "on_the_way" -->
     <?php if ($deliveryStatus === 'on_the_way'): ?>
         <div class="eta-box mb-3" id="etaBox">
             <div class="small opacity-75">Estimated Arrival Time</div>
@@ -688,7 +658,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         </div>
     <?php endif; ?>
     
-    <!-- ✅ WAITING BOX (Before Arrival) -->
     <div class="mb-3" id="waitingBox">
         <div class="waiting-box">
             <i class="fa-solid fa-clock"></i>
@@ -697,7 +666,6 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         </div>
     </div>
     
-    <!-- ✅ RECEIVED BUTTON (Hidden by default) -->
     <div class="mb-3" id="receivedButtonBox" style="display: none;">
         <button class="btn-received" id="btnReceived" onclick="markAsReceived()">
             <i class="fa-solid fa-check-circle"></i>
@@ -709,10 +677,8 @@ if (isset($delivery_locations_map[$deliveryAddr])) {
         </p>
     </div>
     
-    <!-- Map -->
     <div id="trackingMap"></div>
     
-    <!-- Order Info -->
     <div class="delivery-info-card mt-3">
         <div class="row g-3 small">
             <div class="col-6">
@@ -791,7 +757,7 @@ L.marker([destLat, destLng], { icon: destIcon })
     .addTo(map)
     .bindPopup('<strong>📍 <?= htmlspecialchars($order['deliveryAddress'] ?? 'Destination') ?></strong>');
 
-// ✅ ROUTE LINE (Follows Waypoints - Road-like)
+// ✅ ROUTE LINE
 L.polyline(waypoints, {
     color: '#1EAFBD',
     weight: 5,
@@ -801,23 +767,21 @@ L.polyline(waypoints, {
     lineJoin: 'round'
 }).addTo(map);
 
-// Fit Bounds
 const bounds = L.latLngBounds(waypoints);
 map.fitBounds(bounds, { padding: [60, 60] });
 
 // =============================================
-// 🛵 DELIVERY BIKE ANIMATION
+// 📦 PARCEL BOX ANIMATION
 // =============================================
 
 <?php if (in_array($deliveryStatus, ['on_the_way', 'delivered'])): ?>
     
-    let currentAngle = 0;
-
-    function getBikeIcon(angle) {
+    // ✅ Parcel Box Icon (No Direction Issue)
+    function getParcelIcon() {
         return L.divIcon({
-            html: `<div class="bike-icon-wrapper">
-                     <div class="bike-icon" style="transform: rotate(${angle}deg);">
-                       <i class="fa-solid fa-motorcycle" style="transform: rotate(${-angle}deg);"></i>
+            html: `<div class="parcel-icon-wrapper">
+                     <div class="parcel-icon">
+                       <i class="fa-solid fa-box"></i>
                      </div>
                    </div>`,
             iconSize: [60, 60],
@@ -826,32 +790,19 @@ map.fitBounds(bounds, { padding: [60, 60] });
         });
     }
 
-    function calcAngle(fromLat, fromLng, toLat, toLng) {
-        const dLng = toLng - fromLng;
-        const dLat = toLat - fromLat;
-        return Math.atan2(dLng, dLat) * (180 / Math.PI);
-    }
-
     let bikeLat = waypoints[0][0];
     let bikeLng = waypoints[0][1];
 
-    if (waypoints.length > 1) {
-        currentAngle = calcAngle(
-            waypoints[0][0], waypoints[0][1],
-            waypoints[1][0], waypoints[1][1]
-        );
-    }
-
-    const bikeMarker = L.marker([bikeLat, bikeLng], { icon: getBikeIcon(currentAngle) })
+    const bikeMarker = L.marker([bikeLat, bikeLng], { icon: getParcelIcon() })
         .addTo(map)
-        .bindPopup('<strong>🛵 Your Delivery</strong><br>On the way!');
+        .bindPopup('<strong>📦 Your Order</strong><br>On the way!');
 
     <?php if ($deliveryStatus === 'on_the_way'): ?>
     
     // ✅ 15-SECOND ANIMATION
-    const ANIMATION_DURATION = 15000; // 15 seconds
+    const ANIMATION_DURATION = 15000;
     const TOTAL_STEPS = 100;
-    const STEP_INTERVAL = ANIMATION_DURATION / TOTAL_STEPS; // 150ms
+    const STEP_INTERVAL = ANIMATION_DURATION / TOTAL_STEPS;
     const totalDistance = waypoints.length - 1;
     
     let step = 0;
@@ -863,21 +814,18 @@ map.fitBounds(bounds, { padding: [60, 60] });
         if (totalProgress >= totalDistance) {
             clearInterval(interval);
             
-            // ✅ Final position
             const lastIdx = waypoints.length - 1;
             bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
             
-            // Update ETA to 0
             const etaEl = document.getElementById('etaNumber');
             if (etaEl) etaEl.textContent = '0';
             
-            // ✅ SHOW RECEIVED BUTTON + HIDE WAITING
             document.getElementById('receivedButtonBox').style.display = 'block';
             document.getElementById('waitingBox').style.display = 'none';
             
             Swal.fire({
                 icon: 'success',
-                title: '🛵 Delivery Arrived!',
+                title: '📦 Delivery Arrived!',
                 html: 'သင့် Order ရောက်ပါပြီ!<br><small>ပစ္စည်းလက်ခံရရှိပါက "Order Received" Button ကို နှိပ်ပါ။</small>',
                 confirmButtonColor: '#28a745',
                 confirmButtonText: 'ပြီးပါပြီ',
@@ -900,18 +848,8 @@ map.fitBounds(bounds, { padding: [60, 60] });
         bikeLat = fromPt[0] + (toPt[0] - fromPt[0]) * segmentProgress;
         bikeLng = fromPt[1] + (toPt[1] - fromPt[1]) * segmentProgress;
         
-        // ✅ Calculate angle for direction
-        const newAngle = calcAngle(fromPt[0], fromPt[1], toPt[0], toPt[1]);
-        
-        // Smooth angle transition
-        if (Math.abs(newAngle - currentAngle) > 3) {
-            currentAngle = newAngle;
-            bikeMarker.setIcon(getBikeIcon(currentAngle));
-        }
-        
         bikeMarker.setLatLng([bikeLat, bikeLng]);
         
-        // ✅ ETA update (15 → 0)
         const remainingRatio = (totalDistance - totalProgress) / totalDistance;
         const eta = Math.ceil(15 * remainingRatio);
         const etaEl = document.getElementById('etaNumber');
@@ -921,7 +859,6 @@ map.fitBounds(bounds, { padding: [60, 60] });
     
     <?php else: ?>
     
-    // Already delivered - show button immediately
     const lastIdx = waypoints.length - 1;
     bikeMarker.setLatLng([waypoints[lastIdx][0], waypoints[lastIdx][1]]);
     
@@ -932,7 +869,6 @@ map.fitBounds(bounds, { padding: [60, 60] });
     
 <?php else: ?>
     
-    // Preparing or Pending - hide button
     document.getElementById('receivedButtonBox').style.display = 'none';
     
 <?php endif; ?>
