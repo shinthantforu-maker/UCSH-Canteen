@@ -31,21 +31,60 @@ if (!$order) {
     exit();
 }
 
-// ✅ Get rejected item IDs (for marking)
+// Rejected item IDs
 $rejectedItemIds = [];
 if (!empty($order['rejected_items']) && $order['rejected_items'] !== 'all') {
     $rejectedItemIds = array_map('intval', explode(',', $order['rejected_items']));
 }
 
-// Get order items (INCLUDE rejected items - we'll mark them in frontend)
-$itemsStmt = $conn->prepare("SELECT oi.*, m.itemName FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = ?");
+// =============================================
+// Get order items WITH selected_options
+// =============================================
+$itemsStmt = $conn->prepare("
+    SELECT oi.*, m.itemName 
+    FROM order_items oi 
+    JOIN menu_items m ON oi.itemId = m.itemId 
+    WHERE oi.orderId = ?
+");
 $itemsStmt->bind_param("i", $orderId);
 $itemsStmt->execute();
 $itemsResult = $itemsStmt->get_result();
 $items = [];
+
 while ($row = $itemsResult->fetch_assoc()) {
-    // ✅ Add is_rejected flag
+    // is_rejected flag
     $row['is_rejected'] = in_array(intval($row['itemId']), $rejectedItemIds) ? true : false;
+    
+    // Parse options
+    $row['options'] = [];
+    $row['options_text'] = '';
+    
+    if (!empty($row['selected_options'])) {
+        $opts = json_decode($row['selected_options'], true);
+        if (is_array($opts)) {
+            foreach ($opts as $opt) {
+                if (is_array($opt) && !empty($opt['optionName'])) {
+                    $row['options'][] = [
+                        'optionName' => $opt['optionName'],
+                        'extraPoints' => (int)($opt['extraPoints'] ?? 0)
+                    ];
+                }
+            }
+        }
+    }
+    
+    // Build options text
+    if (!empty($row['options'])) {
+        $optNames = array_map(function($o) {
+            $name = $o['optionName'];
+            if ($o['extraPoints'] > 0) {
+                $name .= ' (+' . number_format($o['extraPoints']) . ')';
+            }
+            return $name;
+        }, $row['options']);
+        $row['options_text'] = implode(', ', $optNames);
+    }
+    
     $items[] = $row;
 }
 $itemsStmt->close();
@@ -75,4 +114,3 @@ echo json_encode([
     'order' => $order,
     'items' => $items
 ]);
-?>
