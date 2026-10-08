@@ -997,12 +997,6 @@ function showOrderDetails(orderId) {
                             </td>
                             <td class="text-end fw-bold text-danger" style="text-decoration: line-through; text-decoration-color: #dc3545;">${Number(rejectedTotal).toLocaleString()} pts</td>
                         </tr>
-                        // <tr style="background: #f0fdf4;">
-                        //     <td colspan="3" class="text-end fw-bold text-dark" style="font-size: 0.9rem;">
-                        //         <i class="fa-solid fa-coins text-warning me-1"></i>Actual Total:
-                        //     </td>
-                        //     <td class="text-end fw-bold text-dark" style="font-size: 0.95rem;">${Number(acceptedTotal).toLocaleString()} pts</td>
-                        // </tr>
                     `;
                 }
             } else {
