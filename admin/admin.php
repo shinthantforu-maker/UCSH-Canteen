@@ -182,8 +182,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // =============================================
 // STATISTICS
 // =============================================
-
-// ✅ 7-Day Points (User တွေကို ရောင်းထားတဲ့ Point)
 $totalPoints = $conn->query("
     SELECT COALESCE(SUM(points_used), 0) as totalPoints 
     FROM orders 
@@ -191,7 +189,6 @@ $totalPoints = $conn->query("
     AND status NOT IN ('rejected')
 ")->fetch_assoc()['totalPoints'] ?? 0;
 
-// ✅ Today's Points
 $totalPointsUsed = $conn->query("
     SELECT COALESCE(SUM(points_used), 0) as todayPoints 
     FROM orders 
@@ -396,6 +393,18 @@ if ($isAjax) {
             background: #1EAFBD;
             color: white;
             transform: scale(1.1);
+        }
+
+        /* Option badges in items table */
+        .option-badge-sm {
+            background: #EBF8F9;
+            color: #0F5860;
+            border: 1px solid #B8F0F5;
+            font-size: 0.6rem;
+            padding: 1px 6px;
+            border-radius: 12px;
+            display: inline-block;
+            margin: 1px;
         }
     </style>
 </head>
@@ -900,7 +909,9 @@ if ('speechSynthesis' in window) {
     window.speechSynthesis.getVoices();
 }
 
-// SHOW ORDER DETAILS
+// =============================================
+// SHOW ORDER DETAILS (FIXED VERSION)
+// =============================================
 function showOrderDetails(orderId) {
     document.getElementById('detailsItemsBody').innerHTML = 
         '<tr><td colspan="4" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading...</td></tr>';
@@ -932,81 +943,59 @@ function showOrderDetails(orderId) {
             else if (st === 'partial_rejected') badgeClass = 'bg-warning text-dark';
             statusBadge.className = 'badge ' + badgeClass;
             
-            // ✅ Items Table with Rejected Marking
+            // Build items table
             let itemsHtml = '';
-            let totalPoints = 0;
             let acceptedTotal = 0;
             let rejectedTotal = 0;
             
             if (items && items.length > 0) {
-               items.forEach(item => {
-    const itemTotal = item.price * item.quantity;
-    totalPoints += itemTotal;
-    
-    // ✅ Build options badge HTML
-    let optionsHtml = '';
-    if (item.options && item.options.length > 0) {
-        optionsHtml = '<div class="mt-1">';
-        item.options.forEach(opt => {
-            const extra = opt.extraPoints > 0 
-                ? `<span class="text-warning fw-bold ms-1">(+${Number(opt.extraPoints).toLocaleString()})</span>` 
-                : '';
-            optionsHtml += `<span class="badge" style="background: #EBF8F9; color: #0F5860; border: 1px solid #B8F0F5; font-size: 0.65rem; margin-right: 3px;">
-                <i class="fa-solid fa-check me-1" style="color: #1EAFBD;"></i>${opt.optionName}${extra}
-            </span>`;
-        });
-        optionsHtml += '</div>';
-    }
-    
-    if (item.is_rejected) {
-        // REJECTED ITEM
-        rejectedTotal += itemTotal;
-        itemsHtml += `
-            <tr style="opacity: 0.7; background: #fff5f5;">
-                <td>
-                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
-                        <i class="fa-solid fa-circle-xmark me-1"></i>
-                        ${item.itemName}
-                    </span>
-                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
-                    ${optionsHtml}
-                </td>
-                <td class="text-center">
-                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
-                </td>
-                <td class="text-end">
-                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
-                </td>
-                <td class="text-end">
-                    <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
-                </td>
-            </tr>
-        `;
-    } else {
-        // ACCEPTED ITEM
-        acceptedTotal += itemTotal;
-        itemsHtml += `
-            <tr>
-                <td>
-                    <i class="fa-solid fa-circle-check text-success me-1"></i>
-                    <strong>${item.itemName}</strong>
-                    ${optionsHtml}
-                </td>
-                <td class="text-center">${item.quantity}</td>
-                <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
-                <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
-            </tr>
-        `;
-    }
-});
+                items.forEach(item => {
+                    const itemTotal = item.price * item.quantity;
+                    
+                    // Build options badge HTML
+                    let optionsHtml = '';
+                    if (item.options && item.options.length > 0) {
+                        optionsHtml = '<div class="mt-1">';
+                        item.options.forEach(opt => {
+                            const extra = opt.extraPoints > 0 
+                                ? `<span class="text-warning fw-bold ms-1">(+${Number(opt.extraPoints).toLocaleString()})</span>` 
+                                : '';
+                            optionsHtml += `<span class="option-badge-sm"><i class="fa-solid fa-check me-1" style="color: #1EAFBD;"></i>${opt.optionName}${extra}</span>`;
+                        });
+                        optionsHtml += '</div>';
+                    }
+                    
+                    if (item.is_rejected) {
+                        rejectedTotal += itemTotal;
+                        itemsHtml += `
+                            <tr style="opacity: 0.7; background: #fff5f5;">
+                                <td>
+                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
+                                        <i class="fa-solid fa-circle-xmark me-1"></i>
+                                        ${item.itemName}
+                                    </span>
+                                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
+                                    ${optionsHtml}
+                                </td>
+                                <td class="text-center">
+                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
+                                </td>
+                                <td class="text-end">
+                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
+                                </td>
+                                <td class="text-end">
+                                    <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
+                                </td>
+                            </tr>
+                        `;
                     } else {
-                        // ✅ ACCEPTED ITEM - Normal
                         acceptedTotal += itemTotal;
                         itemsHtml += `
                             <tr>
                                 <td>
                                     <i class="fa-solid fa-circle-check text-success me-1"></i>
-                                    ${item.itemName}
+                                    <strong>${item.itemName}</strong>
+                                    ${optionsHtml}
                                 </td>
                                 <td class="text-center">${item.quantity}</td>
                                 <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
@@ -1016,7 +1005,6 @@ function showOrderDetails(orderId) {
                     }
                 });
                 
-                // ✅ Add Summary Row if there are rejected items
                 if (rejectedTotal > 0) {
                     itemsHtml += `
                         <tr style="background: #f8f9fa; border-top: 2px solid #dee2e6;">
@@ -1039,6 +1027,7 @@ function showOrderDetails(orderId) {
             
             document.getElementById('detailsItemsBody').innerHTML = itemsHtml;
             
+            // Special Request
             if (order.specialRequest && order.specialRequest.trim() !== '') {
                 document.getElementById('detailsSpecialRequest').textContent = order.specialRequest;
                 document.getElementById('detailsSpecialRequestBox').style.display = 'block';
@@ -1046,6 +1035,7 @@ function showOrderDetails(orderId) {
                 document.getElementById('detailsSpecialRequestBox').style.display = 'none';
             }
             
+            // Delivery Info
             if (order.orderType === 'delivery' && order.deliveryAddress) {
                 document.getElementById('detailsDeliveryAddress').textContent = order.deliveryAddress;
                 document.getElementById('detailsDeliveryFee').textContent = '+' + Number(order.deliveryFee).toLocaleString() + ' pts';
@@ -1054,6 +1044,7 @@ function showOrderDetails(orderId) {
                 document.getElementById('detailsDeliveryBox').style.display = 'none';
             }
             
+            // Rejection Info
             if ((st === 'rejected' || st === 'partial_rejected') && order.rejectionReason) {
                 document.getElementById('detailsRejectionReason').textContent = order.rejectionReason;
                 
@@ -1230,7 +1221,9 @@ function showRejectModal(orderId, itemsWithId) {
         var itemsList = [];
         parts.forEach(function(part) {
             var d = part.split(':');
-            if (d.length == 2) itemsList.push({id: d[0], name: d[1]});
+            if (d.length >= 2) {
+                itemsList.push({id: d[0], name: d[1]});
+            }
         });
         
         if (itemsList.length > 0) {
