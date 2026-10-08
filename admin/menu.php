@@ -1,9 +1,9 @@
 <?php
+require_once '../db.php';
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-
-require_once '../db.php';
 
 if (!isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'admin') {
     header("Location: ../login.php");
@@ -13,14 +13,14 @@ if (!isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'admin') {
 $message = "";
 $message_type = "";
 
-// Column မရှိပါက ထည့်သွင်းရန် try-catch ဖြင့် လုံခြုံစွာ စစ်ဆေးခြင်း
+// Ensure special_note column exists
 try {
     $conn->query("ALTER TABLE menu_items ADD special_note VARCHAR(255) DEFAULT NULL");
-} catch (Exception $e) {
-    // Column ရှိပြီးသား သို့မဟုတ် Error တက်ပါက လျစ်လျူရှုမည် (Crash မဖြစ်စေရန်)
-}
+} catch (Exception $e) {}
 
-// ALLOWED IMAGE TYPES: ONLY PNG AND JPEG
+// =============================================
+// IMAGE VALIDATION
+// =============================================
 function isAllowedImage($file) {
     $allowed_types = ['image/png', 'image/jpeg', 'image/jpg'];
     $allowed_extensions = ['png', 'jpg', 'jpeg'];
@@ -29,21 +29,20 @@ function isAllowedImage($file) {
     $mime_type = finfo_file($finfo, $file['tmp_name']);
     finfo_close($finfo);
     
-    if (!in_array($mime_type, $allowed_types)) {
-        return false;
-    }
+    if (!in_array($mime_type, $allowed_types)) return false;
     
     $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-    if (!in_array($extension, $allowed_extensions)) {
-        return false;
-    }
+    if (!in_array($extension, $allowed_extensions)) return false;
     
     return true;
 }
 
-// CRUD Operations
+// =============================================
+// CRUD OPERATIONS
+// =============================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
+    // ---- ADD ITEM ----
     if ($_POST['action'] === 'add_item') {
         $itemName = trim($_POST['itemName']);
         $category = trim($_POST['category']);
@@ -58,9 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message_type = "danger";
             } else {
                 $targetDir = "../uploads/";
-                if (!file_exists($targetDir)) {
-                    mkdir($targetDir, 0777, true);
-                }
+                if (!file_exists($targetDir)) mkdir($targetDir, 0777, true);
                 $extension = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
                 $fileName = time() . '_' . uniqid() . '.' . $extension;
                 $targetFilePath = $targetDir . $fileName;
@@ -85,6 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    // ---- EDIT ITEM ----
     if ($_POST['action'] === 'edit_item') {
         $itemId = intval($_POST['itemId']);
         $itemName = trim($_POST['itemName']);
@@ -99,9 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $message_type = "danger";
             } else {
                 $targetDir = "../uploads/";
-                if (!file_exists($targetDir)) {
-                    mkdir($targetDir, 0777, true);
-                }
+                if (!file_exists($targetDir)) mkdir($targetDir, 0777, true);
                 $extension = strtolower(pathinfo($_FILES["image"]["name"], PATHINFO_EXTENSION));
                 $fileName = time() . '_' . uniqid() . '.' . $extension;
                 $targetFilePath = $targetDir . $fileName;
@@ -128,6 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
     }
 
+    // ---- TOGGLE STOCK ----
     if ($_POST['action'] === 'toggle_stock') {
         $itemId = intval($_POST['itemId']);
         $status = intval($_POST['current_status']) === 1 ? 0 : 1;
@@ -139,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $message_type = "info";
     }
 
+    // ---- DELETE ITEM ----
     if ($_POST['action'] === 'delete_item') {
         $itemId = intval($_POST['itemId']);
         $stmt = $conn->prepare("DELETE FROM menu_items WHERE itemId = ?");
@@ -149,9 +147,92 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         }
         $stmt->close();
     }
+
+    // =============================================
+    // 🎯 OPTIONS MANAGEMENT
+    // =============================================
+
+    // ---- ADD OPTION GROUP ----
+    if ($_POST['action'] === 'add_option_group') {
+        $itemId = intval($_POST['itemId']);
+        $groupName = trim($_POST['groupName'] ?? '');
+        $isRequired = isset($_POST['isRequired']) ? 1 : 0;
+        
+        if (!empty($groupName) && $itemId > 0) {
+            $stmt = $conn->prepare("INSERT INTO menu_option_groups (itemId, groupName, isRequired) VALUES (?, ?, ?)");
+            $stmt->bind_param("isi", $itemId, $groupName, $isRequired);
+            if ($stmt->execute()) {
+                $message = "Option Group '{$groupName}' ထည့်ပြီးပါပြီ။";
+                $message_type = "success";
+            }
+            $stmt->close();
+        }
+    }
+
+    // ---- ADD OPTION ----
+    if ($_POST['action'] === 'add_option') {
+        $groupId = intval($_POST['groupId']);
+        $optionName = trim($_POST['optionName'] ?? '');
+        $extraPoints = intval($_POST['extraPoints'] ?? 0);
+        
+        if (!empty($optionName) && $groupId > 0) {
+            $stmt = $conn->prepare("INSERT INTO menu_options (groupId, optionName, extraPoints) VALUES (?, ?, ?)");
+            $stmt->bind_param("isi", $groupId, $optionName, $extraPoints);
+            if ($stmt->execute()) {
+                $message = "Option '{$optionName}' ထည့်ပြီးပါပြီ။";
+                $message_type = "success";
+            }
+            $stmt->close();
+        }
+    }
+
+    // ---- DELETE OPTION GROUP ----
+    if ($_POST['action'] === 'delete_option_group') {
+        $groupId = intval($_POST['groupId']);
+        $stmt = $conn->prepare("DELETE FROM menu_option_groups WHERE groupId = ?");
+        $stmt->bind_param("i", $groupId);
+        $stmt->execute();
+        $stmt->close();
+        $message = "Option Group ဖျက်ပြီးပါပြီ။";
+        $message_type = "warning";
+    }
+
+    // ---- DELETE OPTION ----
+    if ($_POST['action'] === 'delete_option') {
+        $optionId = intval($_POST['optionId']);
+        $stmt = $conn->prepare("DELETE FROM menu_options WHERE optionId = ?");
+        $stmt->bind_param("i", $optionId);
+        $stmt->execute();
+        $stmt->close();
+        $message = "Option ဖျက်ပြီးပါပြီ။";
+        $message_type = "warning";
+    }
+
+    // ---- TOGGLE OPTION AVAILABILITY ----
+    if ($_POST['action'] === 'toggle_option') {
+        $optionId = intval($_POST['optionId']);
+        $stmt = $conn->prepare("UPDATE menu_options SET isAvailable = NOT isAvailable WHERE optionId = ?");
+        $stmt->bind_param("i", $optionId);
+        $stmt->execute();
+        $stmt->close();
+        $message = "Option status ပြောင်းပြီးပါပြီ။";
+        $message_type = "info";
+    }
+
+    // Redirect to avoid form resubmission
+    header("Location: menu.php?msg=" . urlencode($message) . "&type=" . urlencode($message_type));
+    exit();
 }
 
-// Fetch Menu Items
+// Read message from redirect
+if (isset($_GET['msg'])) {
+    $message = $_GET['msg'];
+    $message_type = $_GET['type'] ?? 'info';
+}
+
+// =============================================
+// FETCH MENU ITEMS
+// =============================================
 $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
 $menu_items = [];
 if ($menu_result && $menu_result->num_rows > 0) {
@@ -160,7 +241,6 @@ if ($menu_result && $menu_result->num_rows > 0) {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="my">
 <head>
@@ -179,27 +259,17 @@ if ($menu_result && $menu_result->num_rows > 0) {
         .nav-link-custom:hover, .nav-link-custom.active { background-color: var(--brand-light); color: var(--brand-color); }
         .text-brand { color: var(--brand-color) !important; }
         .bg-brand { background-color: var(--brand-color) !important; }
+        .btn-brand { background-color: var(--brand-color); color: white; border: none; }
+        .btn-brand:hover { background-color: var(--brand-hover); color: white; }
         .menu-img-preview { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; }
-        @media (max-width: 991.98px) { .sidebar { position: fixed; top: 0; left: -260px; z-index: 1050; } .sidebar.show { left: 0; } }
-        
-        .image-preview {
-            max-width: 150px;
-            max-height: 150px;
-            border-radius: 8px;
-            border: 1px solid #E2E8F0;
-            padding: 4px;
-            display: none;
-        }
-        .image-preview.show {
-            display: block;
-        }
-
-        .modal-backdrop {
-            z-index: 1040 !important;
-        }
-        .modal {
-            z-index: 1055 !important;
-            background-color: rgba(0, 0, 0, 0.4);
+        .image-preview { max-width: 150px; max-height: 150px; border-radius: 8px; border: 1px solid #E2E8F0; padding: 4px; display: none; }
+        .image-preview.show { display: block; }
+        .option-group-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+        .option-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: white; border-radius: 8px; margin-bottom: 5px; border: 1px solid #E2E8F0; }
+        .options-badge-count { background: #1EAFBD; color: white; font-size: 0.65rem; padding: 2px 7px; border-radius: 20px; margin-left: 5px; }
+        @media (max-width: 991.98px) { 
+            .sidebar { position: fixed; top: 0; left: -260px; z-index: 1050; transition: left 0.3s; } 
+            .sidebar.show { left: 0; } 
         }
     </style>
 </head>
@@ -232,8 +302,8 @@ if ($menu_result && $menu_result->num_rows > 0) {
         </div>
 
         <?php if (!empty($message)): ?>
-            <div class="alert alert-<?= $message_type ?> alert-dismissible fade show rounded-3" role="alert">
-                <i class="fa-solid fa-circle-info me-2"></i><?= $message ?>
+            <div class="alert alert-<?= htmlspecialchars($message_type) ?> alert-dismissible fade show rounded-3" role="alert">
+                <i class="fa-solid fa-circle-info me-2"></i><?= htmlspecialchars($message) ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
@@ -257,10 +327,23 @@ if ($menu_result && $menu_result->num_rows > 0) {
                     </thead>
                     <tbody>
                         <?php if (!empty($menu_items)): ?>
-                            <?php foreach ($menu_items as $item): ?>
+                            <?php foreach ($menu_items as $item): 
+                                $optCountStmt = $conn->prepare("SELECT COUNT(*) as cnt FROM menu_option_groups WHERE itemId = ?");
+                                $optCountStmt->bind_param("i", $item['itemId']);
+                                $optCountStmt->execute();
+                                $optCount = (int)$optCountStmt->get_result()->fetch_assoc()['cnt'];
+                                $optCountStmt->close();
+                            ?>
                                 <tr>
                                     <td><img src="<?= !empty($item['image']) ? '../' . htmlspecialchars($item['image']) : 'https://via.placeholder.com/50' ?>" class="menu-img-preview border" alt="Menu"></td>
-                                    <td class="fw-medium text-dark"><?= htmlspecialchars($item['itemName']) ?></td>
+                                    <td class="fw-medium text-dark">
+                                        <?= htmlspecialchars($item['itemName']) ?>
+                                        <?php if ($optCount > 0): ?>
+                                            <span class="options-badge-count">
+                                                <i class="fa-solid fa-list-check"></i> <?= $optCount ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($item['category']) ?></span></td>
                                     <td class="fw-bold text-warning"><?= number_format($item['points']) ?></td>
                                     <td><small class="text-muted"><?= htmlspecialchars($item['special_note'] ?? '-') ?></small></td>
@@ -276,6 +359,11 @@ if ($menu_result && $menu_result->num_rows > 0) {
                                         </form>
                                     </td>
                                     <td class="text-center">
+                                        <button type="button" class="btn btn-sm btn-light border text-warning me-1 rounded-3" 
+                                                data-bs-toggle="modal" data-bs-target="#optionsModal<?= $item['itemId'] ?>"
+                                                title="Manage Options">
+                                            <i class="fa-solid fa-list-check"></i>
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-light border text-brand me-1 rounded-3" data-bs-toggle="modal" data-bs-target="#editModal<?= $item['itemId'] ?>">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </button>
@@ -299,7 +387,9 @@ if ($menu_result && $menu_result->num_rows > 0) {
     </div>
 </div>
 
-<!-- ADD ITEM MODAL -->
+<!-- ============================================= -->
+<!-- ADD ITEM MODAL                                -->
+<!-- ============================================= -->
 <div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0">
@@ -327,19 +417,21 @@ if ($menu_result && $menu_result->num_rows > 0) {
                         <input type="number" name="points" class="form-control" placeholder="Points ပမာဏ" required min="1">
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">Special Note (တစ်ခုခုမှာလို့ရအောင်)</label>
+                        <label class="form-label small fw-bold">Special Note</label>
                         <input type="text" name="special_note" class="form-control" placeholder="ဥပမာ - ဆားနည်းနည်းလျှော့ပေးပါ...">
-                        <small class="text-muted">Customer က ဒီမှာရေးထားတဲ့အတိုင်း မှာလို့ရပါတယ်</small>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label small fw-bold">ဓာတ်ပုံ <span class="text-danger">*PNG သို့မဟုတ် JPEG သာ</span></label>
-                        <input type="file" name="image" id="imageInput" class="form-control" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewImage(this, 'addPreview')">
+                        <label class="form-label small fw-bold">ဓာတ်ပုံ <span class="text-danger">*PNG/JPEG သာ</span></label>
+                        <input type="file" name="image" id="imageInput" class="form-control" accept=".png,.jpg,.jpeg" onchange="previewImage(this, 'addPreview')">
                         <img id="addPreview" class="image-preview mt-2" src="#" alt="Preview">
-                        <small class="text-muted d-block">PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။</small>
                     </div>
                     <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" name="isAvailable" id="addAvail" checked>
                         <label class="form-check-label small fw-bold" for="addAvail">In Stock</label>
+                    </div>
+                    <div class="alert alert-info small mb-0">
+                        <i class="fa-solid fa-info-circle me-1"></i>
+                        Item ထည့်ပြီးရင် Menu list မှာ <strong>Options</strong> button ကို နှိပ်ပြီး ရွေးချယ်စရာများ ထည့်နိုင်ပါတယ်။
                     </div>
                 </div>
                 <div class="modal-footer border-0 bg-light">
@@ -351,7 +443,9 @@ if ($menu_result && $menu_result->num_rows > 0) {
     </div>
 </div>
 
-<!-- EDIT ITEM MODALS -->
+<!-- ============================================= -->
+<!-- EDIT ITEM MODALS                              -->
+<!-- ============================================= -->
 <?php if (!empty($menu_items)): ?>
     <?php foreach ($menu_items as $item): ?>
         <div class="modal fade" id="editModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
@@ -382,15 +476,13 @@ if ($menu_result && $menu_result->num_rows > 0) {
                                 <input type="number" name="points" class="form-control" value="<?= $item['points'] ?>" required min="1">
                             </div>
                             <div class="mb-3">
-                                <label class="form-label small fw-bold">Special Note (တစ်ခုခုမှာလို့ရအောင်)</label>
-                                <input type="text" name="special_note" class="form-control" value="<?= htmlspecialchars($item['special_note'] ?? '') ?>" placeholder="ဥပမာ - ဆားနည်းနည်းလျှော့ပေးပါ...">
-                                <small class="text-muted">Customer က ဒီမှာရေးထားတဲ့အတိုင်း မှာလို့ရပါတယ်</small>
+                                <label class="form-label small fw-bold">Special Note</label>
+                                <input type="text" name="special_note" class="form-control" value="<?= htmlspecialchars($item['special_note'] ?? '') ?>">
                             </div>
                             <div class="mb-3">
-                                <label class="form-label small fw-bold">ဓာတ်ပုံ (အသစ်လဲလိုပါက) <span class="text-danger">*PNG သို့မဟုတ် JPEG သာ</span></label>
-                                <input type="file" name="image" class="form-control" accept=".png,.jpg,.jpeg,image/png,image/jpeg" onchange="previewImage(this, 'editPreview<?= $item['itemId'] ?>')">
+                                <label class="form-label small fw-bold">ဓာတ်ပုံ (အသစ်လဲလိုပါက)</label>
+                                <input type="file" name="image" class="form-control" accept=".png,.jpg,.jpeg" onchange="previewImage(this, 'editPreview<?= $item['itemId'] ?>')">
                                 <img id="editPreview<?= $item['itemId'] ?>" class="image-preview mt-2" src="#" alt="Preview">
-                                <small class="text-muted d-block">PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။</small>
                             </div>
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" name="isAvailable" id="avail<?= $item['itemId'] ?>" <?= $item['isAvailable'] ? 'checked' : '' ?>>
@@ -402,6 +494,152 @@ if ($menu_result && $menu_result->num_rows > 0) {
                             <button type="submit" class="btn bg-brand text-white btn-sm rounded-3 fw-medium">သိမ်းဆည်းမည်</button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<!-- ============================================= -->
+<!-- OPTIONS MANAGEMENT MODALS                     -->
+<!-- ============================================= -->
+<?php if (!empty($menu_items)): ?>
+    <?php foreach ($menu_items as $item): 
+        $optionGroups = getItemOptionGroups($conn, $item['itemId'], false);
+    ?>
+        <div class="modal fade" id="optionsModal<?= $item['itemId'] ?>" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+                <div class="modal-content rounded-4 border-0">
+                    <div class="modal-header bg-light border-0">
+                        <h6 class="fw-bold m-0">
+                            <i class="fa-solid fa-list-check text-warning me-2"></i>
+                            Options — <?= htmlspecialchars($item['itemName']) ?>
+                        </h6>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        
+                        <!-- Existing Groups -->
+                        <?php if (!empty($optionGroups)): ?>
+                            <?php foreach ($optionGroups as $group): ?>
+                                <div class="option-group-box">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <h6 class="fw-bold mb-1">
+                                                <i class="fa-solid fa-folder-open text-brand me-1"></i>
+                                                <?= htmlspecialchars($group['groupName']) ?>
+                                                <?php if ($group['isRequired']): ?>
+                                                    <span class="badge bg-danger-subtle text-danger" style="font-size:0.65rem;">Required</span>
+                                                <?php else: ?>
+                                                    <span class="badge bg-secondary-subtle text-secondary" style="font-size:0.65rem;">Optional</span>
+                                                <?php endif; ?>
+                                            </h6>
+                                        </div>
+                                        <form method="POST" class="d-inline" onsubmit="return confirm('Group ကို ဖျက်မှာလား? Options အားလုံးပါ ပျက်သွားပါမယ်။');">
+                                            <input type="hidden" name="action" value="delete_option_group">
+                                            <input type="hidden" name="groupId" value="<?= $group['groupId'] ?>">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-3">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    
+                                    <!-- Options list -->
+                                    <?php if (!empty($group['options'])): ?>
+                                        <div class="ms-3 mb-2">
+                                            <?php foreach ($group['options'] as $opt): ?>
+                                                <div class="option-item">
+                                                    <div>
+                                                        <i class="fa-solid fa-circle-check <?= $opt['isAvailable'] ? 'text-success' : 'text-muted' ?> me-1"></i>
+                                                        <span class="<?= $opt['isAvailable'] ? '' : 'text-muted text-decoration-line-through' ?>">
+                                                            <?= htmlspecialchars($opt['optionName']) ?>
+                                                        </span>
+                                                        <?php if ($opt['extraPoints'] > 0): ?>
+                                                            <span class="badge bg-warning-subtle text-warning ms-1">
+                                                                +<?= number_format($opt['extraPoints']) ?> pts
+                                                            </span>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                    <div class="d-flex gap-1">
+                                                        <form method="POST" class="d-inline">
+                                                            <input type="hidden" name="action" value="toggle_option">
+                                                            <input type="hidden" name="optionId" value="<?= $opt['optionId'] ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-secondary rounded-3 py-0 px-2" style="font-size:0.7rem;">
+                                                                <?= $opt['isAvailable'] ? 'Disable' : 'Enable' ?>
+                                                            </button>
+                                                        </form>
+                                                        <form method="POST" class="d-inline" onsubmit="return confirm('Option ဖျက်မှာလား?');">
+                                                            <input type="hidden" name="action" value="delete_option">
+                                                            <input type="hidden" name="optionId" value="<?= $opt['optionId'] ?>">
+                                                            <button type="submit" class="btn btn-sm btn-outline-danger rounded-3 py-0 px-2" style="font-size:0.7rem;">
+                                                                <i class="fa-solid fa-xmark"></i>
+                                                            </button>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="text-muted small ms-3 mb-2">Option မရှိသေးပါ</div>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Add Option form -->
+                                    <form method="POST" class="row g-2 mt-2">
+                                        <input type="hidden" name="action" value="add_option">
+                                        <input type="hidden" name="groupId" value="<?= $group['groupId'] ?>">
+                                        <div class="col-5">
+                                            <input type="text" name="optionName" class="form-control form-control-sm" 
+                                                   placeholder="ဥပမာ - ကြက်" required>
+                                        </div>
+                                        <div class="col-4">
+                                            <input type="number" name="extraPoints" class="form-control form-control-sm" 
+                                                   placeholder="+Points" value="0" min="0">
+                                        </div>
+                                        <div class="col-3">
+                                            <button type="submit" class="btn btn-sm btn-brand w-100">
+                                                <i class="fa-solid fa-plus"></i> Option
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="alert alert-info rounded-3 small">
+                                <i class="fa-solid fa-info-circle me-1"></i>
+                                ဒီ Item မှာ options မရှိသေးပါ။ အောက်မှာ group အသစ်ထည့်ပါ။
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- Add New Group form -->
+                        <div class="border-top pt-3 mt-3">
+                            <h6 class="fw-bold text-brand mb-2">
+                                <i class="fa-solid fa-plus-circle me-1"></i>Option Group အသစ်ထည့်
+                            </h6>
+                            <form method="POST" class="row g-2">
+                                <input type="hidden" name="action" value="add_option_group">
+                                <input type="hidden" name="itemId" value="<?= $item['itemId'] ?>">
+                                <div class="col-12 col-md-6">
+                                    <input type="text" name="groupName" class="form-control form-control-sm" 
+                                           placeholder="ဥပမာ - အသားအမျိုးအစား" required>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input" type="checkbox" name="isRequired" 
+                                               id="req<?= $item['itemId'] ?>" checked>
+                                        <label class="form-check-label small" for="req<?= $item['itemId'] ?>">
+                                            Required
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <button type="submit" class="btn btn-sm btn-brand w-100">
+                                        <i class="fa-solid fa-plus"></i> Group
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                        
+                    </div>
                 </div>
             </div>
         </div>
