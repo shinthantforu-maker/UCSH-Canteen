@@ -18,7 +18,7 @@ try {
     $conn->query("ALTER TABLE menu_items ADD special_note VARCHAR(255) DEFAULT NULL");
 } catch (Exception $e) {}
 
-// Ensure menu_option_groups.maxSelect column exists
+// Ensure menu_option_groups.maxSelect column exists (default 1)
 try {
     $conn->query("ALTER TABLE menu_option_groups ADD COLUMN maxSelect TINYINT DEFAULT 1");
 } catch (Exception $e) {}
@@ -63,7 +63,7 @@ function saveItemOptions($conn, $itemId, $groupsData) {
         if (empty($groupName)) continue;
         
         $isRequired = !empty($group['required']) ? 1 : 0;
-        $maxSelect = max(1, intval($group['maxSelect'] ?? 1));
+        $maxSelect = 1; // ✅ Always 1 (radio)
         
         $groupStmt->bind_param("isii", $itemId, $groupName, $isRequired, $maxSelect);
         $groupStmt->execute();
@@ -101,7 +101,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $imagePath = "";
         $hasError = false;
 
-        // Image upload
         if (isset($_FILES['image']) && $_FILES['image']['error'] === 0) {
             if (!isAllowedImage($_FILES['image'])) {
                 $message = "PNG နှင့် JPEG ပုံများကိုသာ တင်ခွင့်ပြုပါသည်။";
@@ -127,7 +126,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $newItemId = $stmt->insert_id;
                 $stmt->close();
                 
-                // ✅ Save options
                 $optionsJson = $_POST['options_data'] ?? '[]';
                 $groupsData = json_decode($optionsJson, true) ?: [];
                 saveItemOptions($conn, $newItemId, $groupsData);
@@ -176,7 +174,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $stmt->close();
         }
         
-        // ✅ Save options (delete old + insert new)
         $optionsJson = $_POST['options_data'] ?? '[]';
         $groupsData = json_decode($optionsJson, true) ?: [];
         saveItemOptions($conn, $itemId, $groupsData);
@@ -225,7 +222,6 @@ $menu_result = $conn->query("SELECT * FROM menu_items ORDER BY itemId DESC");
 $menu_items = [];
 if ($menu_result && $menu_result->num_rows > 0) {
     while ($row = $menu_result->fetch_assoc()) {
-        // Get options for this item
         $row['option_groups'] = getItemOptionGroups($conn, $row['itemId'], false);
         $menu_items[] = $row;
     }
@@ -261,6 +257,37 @@ if ($menu_result && $menu_result->num_rows > 0) {
         .search-wrapper { position: relative; max-width: 400px; }
         .search-wrapper .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94A3B8; }
         .search-wrapper input { padding-left: 40px; border-radius: 20px; }
+
+        /* ✅ FIX: Modal scroll */
+        #itemModal .modal-dialog {
+            max-height: 90vh;
+            display: flex;
+            align-items: center;
+        }
+        #itemModal .modal-content {
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #itemModal .modal-body {
+            overflow-y: auto;
+            flex: 1 1 auto;
+            max-height: calc(90vh - 140px);
+        }
+        #itemModal .modal-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        #itemModal .modal-body::-webkit-scrollbar-track {
+            background: #F1F5F9;
+            border-radius: 10px;
+        }
+        #itemModal .modal-body::-webkit-scrollbar-thumb {
+            background: #CBD5E0;
+            border-radius: 10px;
+        }
+        #itemModal .modal-body::-webkit-scrollbar-thumb:hover {
+            background: #94A3B8;
+        }
         
         @media (max-width: 991.98px) { 
             .sidebar { position: fixed; top: 0; left: -260px; z-index: 1050; transition: left 0.3s; } 
@@ -382,10 +409,10 @@ if ($menu_result && $menu_result->num_rows > 0) {
 </div>
 
 <!-- ============================================= -->
-<!-- ADD / EDIT ITEM MODAL (SINGLE)                -->
+<!-- ADD / EDIT ITEM MODAL                         -->
 <!-- ============================================= -->
 <div class="modal fade" id="itemModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content rounded-4 border-0">
             <div class="modal-header bg-light border-0">
                 <h6 class="fw-bold m-0" id="modalTitle">
@@ -450,7 +477,7 @@ if ($menu_result && $menu_result->num_rows > 0) {
                         </div>
                         <p class="text-muted small mb-2">
                             <i class="fa-solid fa-info-circle me-1"></i>
-                            ဥပမာ - "အသားအမျိုးအစား" group အောက်မှာ "ကြက်", "ဝက်", "ပင်လယ်စာ" ထည့်ပါ။
+                            ဥပမာ - "အသားအမျိုးအစား" group အောက်မှာ "ကြက်", "ဝက်", "ပင်လယ်စာ" ထည့်ပါ။ (တစ်ခုသာ ရွေးလို့ရမယ်)
                         </p>
                         <div id="optionsContainer">
                             <!-- Dynamic groups -->
@@ -489,7 +516,7 @@ function previewImage(input, previewId) {
 }
 
 // =============================================
-// OPTIONS BUILDER
+// OPTIONS BUILDER (Max Select မပါ — တစ်ခုသာ)
 // =============================================
 let groupCounter = 0;
 
@@ -504,7 +531,6 @@ function addNewGroup(groupData = null) {
     
     const groupName = groupData?.groupName || '';
     const isRequired = groupData?.isRequired == 1 ? 'checked' : '';
-    const maxSelect = groupData?.maxSelect || 1;
     
     div.innerHTML = `
         <div class="d-flex justify-content-between align-items-start mb-2">
@@ -517,24 +543,14 @@ function addNewGroup(groupData = null) {
                 <i class="fa-solid fa-trash"></i>
             </button>
         </div>
-        <div class="row g-2 mb-2">
-            <div class="col-6">
-                <div class="form-check">
-                    <input class="form-check-input group-required-input" type="checkbox" ${isRequired}>
-                    <label class="form-check-label small">Required (မဖြစ်မနေရွေးရမည်)</label>
-                </div>
+        <div class="mb-2">
+            <div class="form-check">
+                <input class="form-check-input group-required-input" type="checkbox" ${isRequired}>
+                <label class="form-check-label small">Required (မဖြစ်မနေရွေးရမည်)</label>
             </div>
-            <div class="col-6">
-                <div class="d-flex align-items-center gap-2">
-                    <label class="small fw-bold m-0 text-nowrap">Max Select:</label>
-                    <select class="form-select form-select-sm group-maxselect-input">
-                        <option value="1" ${maxSelect == 1 ? 'selected' : ''}>၁ ခု (Radio)</option>
-                        <option value="2" ${maxSelect == 2 ? 'selected' : ''}>၂ ခု (Checkbox)</option>
-                        <option value="3" ${maxSelect == 3 ? 'selected' : ''}>၃ ခု (Checkbox)</option>
-                        <option value="5" ${maxSelect == 5 ? 'selected' : ''}>၅ ခု (Checkbox)</option>
-                    </select>
-                </div>
-            </div>
+            <small class="text-muted" style="font-size: 0.7rem;">
+                <i class="fa-solid fa-circle-info me-1"></i>တစ်ခုသာ ရွေးလို့ရမည်
+            </small>
         </div>
         
         <div class="options-list ms-2 mb-2">
@@ -629,7 +645,6 @@ function collectOptionsData() {
         if (!groupName) return;
         
         const isRequired = groupBox.querySelector('.group-required-input').checked ? 1 : 0;
-        const maxSelect = parseInt(groupBox.querySelector('.group-maxselect-input').value) || 1;
         
         const options = [];
         groupBox.querySelectorAll('.option-item').forEach(optItem => {
@@ -643,7 +658,7 @@ function collectOptionsData() {
         groups.push({
             name: groupName,
             required: isRequired,
-            maxSelect: maxSelect,
+            maxSelect: 1, // ✅ Always 1
             options: options
         });
     });
@@ -667,10 +682,17 @@ function openAddModal() {
     document.getElementById('optionsContainer').innerHTML = '';
     groupCounter = 0;
     
-    // ✅ Auto add 1 empty group
+    // Auto add 1 empty group
     addNewGroup();
     
-    new bootstrap.Modal(document.getElementById('itemModal')).show();
+    // ✅ Reset modal scroll to top
+    const modal = new bootstrap.Modal(document.getElementById('itemModal'));
+    modal.show();
+    
+    setTimeout(() => {
+        const modalBody = document.querySelector('#itemModal .modal-body');
+        if (modalBody) modalBody.scrollTop = 0;
+    }, 300);
 }
 
 // =============================================
@@ -688,7 +710,6 @@ function openEditModal(item) {
     document.getElementById('imageInput').value = '';
     document.getElementById('imagePreview').classList.remove('show');
     
-    // Clear & rebuild options
     document.getElementById('optionsContainer').innerHTML = '';
     groupCounter = 0;
     
@@ -699,18 +720,22 @@ function openEditModal(item) {
         addNewGroup();
     }
     
-    new bootstrap.Modal(document.getElementById('itemModal')).show();
+    const modal = new bootstrap.Modal(document.getElementById('itemModal'));
+    modal.show();
+    
+    setTimeout(() => {
+        const modalBody = document.querySelector('#itemModal .modal-body');
+        if (modalBody) modalBody.scrollTop = 0;
+    }, 300);
 }
 
 // =============================================
-// FORM SUBMIT - Collect options data
+// FORM SUBMIT
 // =============================================
 document.getElementById('itemForm').addEventListener('submit', function(e) {
-    // Collect options
     const optionsData = collectOptionsData();
     document.getElementById('optionsDataInput').value = JSON.stringify(optionsData);
     
-    // Image validation
     const fileInput = document.getElementById('imageInput');
     if (fileInput && fileInput.files && fileInput.files[0]) {
         const file = fileInput.files[0];
@@ -730,7 +755,6 @@ document.getElementById('itemForm').addEventListener('submit', function(e) {
         }
     }
     
-    // Show loading
     const btn = document.getElementById('confirmBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>သိမ်းဆည်းနေပါသည်...';
@@ -770,7 +794,7 @@ function escapeHtml(text) {
 }
 
 // =============================================
-// SCROLL PRESERVATION ON PAGE LOAD
+// SCROLL PRESERVATION
 // =============================================
 document.addEventListener('DOMContentLoaded', function() {
     const scrollPos = sessionStorage.getItem('menuScrollPos');
@@ -780,7 +804,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Save scroll position before form submit
 document.querySelectorAll('form').forEach(form => {
     form.addEventListener('submit', function() {
         if (this.id !== 'itemForm') {
