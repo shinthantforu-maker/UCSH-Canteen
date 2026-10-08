@@ -16,22 +16,13 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $error_msg = "";
 
-
 // =============================================
-// FUNCTION: Generate Queue Number from Order ID
-// =============================================
-function generateQueueNumberFromId($orderId) {
-    $random = rand(10, 99);
-    return "Q" . $orderId . $random;
-}
-
-
 // Get User Points
+// =============================================
 $userStmt = $conn->prepare("SELECT points FROM users WHERE userId = ?");
 $userStmt->bind_param("i", $user_id);
 $userStmt->execute();
-$userResult = $userStmt->get_result();
-$userData = $userResult->fetch_assoc();
+$userData = $userStmt->get_result()->fetch_assoc();
 $currentPoints = $userData['points'] ?? 0;
 $userStmt->close();
 
@@ -57,30 +48,59 @@ if ($like_stmt) {
     $like_stmt->close();
 }
 
+// =============================================
 // Handle Cart Actions
+// =============================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'update_qty') {
         $cartId = intval($_POST['cartId']);
         $qty = max(1, intval($_POST['quantity']));
         
-        $cartItemStmt = $conn->prepare("SELECT m.points FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.cartId = ? AND c.userId = ?");
+        // Get item + options
+        $cartItemStmt = $conn->prepare("SELECT m.points, c.selected_options FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.cartId = ? AND c.userId = ?");
         $cartItemStmt->bind_param("ii", $cartId, $user_id);
         $cartItemStmt->execute();
-        $cartItemResult = $cartItemStmt->get_result();
-        $cartItemData = $cartItemResult->fetch_assoc();
-        $itemPoints = $cartItemData['points'] ?? 0;
+        $cartItemData = $cartItemStmt->get_result()->fetch_assoc();
         $cartItemStmt->close();
-
-        $totalPointsNeeded = $itemPoints * $qty;
-        if ($currentPoints < $totalPointsNeeded) {
-            $error_msg = "Point မလုံလောက်ပါ။ လိုအပ်သော Point: " . number_format($totalPointsNeeded) . "၊ သင့်တွင်: " . number_format($currentPoints);
-        } else {
-            $stmt = $conn->prepare("UPDATE cart SET quantity = ? WHERE cartId = ? AND userId = ?");
-            $stmt->bind_param("iii", $qty, $cartId, $user_id);
-            $stmt->execute();
-            $stmt->close();
-            header("Location: cart.php");
-            exit();
+        
+        if ($cartItemData) {
+            $extra = calcExtraPoints($cartItemData['selected_options']);
+            $unitPrice = (int)$cartItemData['points'] + $extra;
+            $newTotalForThis = $unitPrice * $qty;
+            
+            // Calculate cart total (excluding this item's old qty)
+            $oldQtyStmt = $conn->prepare("SELECT quantity FROM cart WHERE cartId = ?");
+            $oldQtyStmt->bind_param("i", $cartId);
+            $oldQtyStmt->execute();
+            $oldQty = (int)$oldQtyStmt->get_result()->fetch_assoc()['quantity'];
+            $oldQtyStmt->close();
+            
+            $cartAllStmt = $conn->prepare("SELECT c.quantity, c.selected_options, m.points FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.userId = ?");
+            $cartAllStmt->bind_param("i", $user_id);
+            $cartAllStmt->execute();
+            $cartAllRes = $cartAllStmt->get_result();
+            $otherTotal = 0;
+            while ($row = $cartAllRes->fetch_assoc()) {
+                $rowExtra = calcExtraPoints($row['selected_options']);
+                $rowUnit = (int)$row['points'] + $rowExtra;
+                $otherTotal += $rowUnit * (int)$row['quantity'];
+            }
+            $cartAllStmt->close();
+            
+            // otherTotal includes this item's old value — subtract it, add new
+            $oldThisValue = $unitPrice * $oldQty;
+            $newCartTotal = $otherTotal - $oldThisValue + $newTotalForThis;
+            
+            if ($currentPoints < $newCartTotal) {
+                $error_msg = "Point မလုံလောက်ပါ။ လိုအပ်ချက်: " . number_format($newCartTotal) . "၊ သင့်တွင်: " . number_format($currentPoints);
+            } else {
+                $stmt = $conn->prepare("UPDATE cart SET quantity = ? WHERE cartId = ? AND userId = ?");
+                $stmt->bind_param("iii", $qty, $cartId, $user_id);
+                $stmt->execute();
+                $stmt->close();
+                header("Location: cart.php");
+                exit();
+            }
         }
     } elseif ($_POST['action'] === 'delete') {
         $cartId = intval($_POST['cartId']);
@@ -102,28 +122,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
     $pickupTime = $_POST['pickupTime'] ?? '12:00 PM';
     $specialRequest = isset($_POST['specialRequest']) ? trim($_POST['specialRequest']) : '';
 
+    // Refresh points
     $userStmt = $conn->prepare("SELECT points FROM users WHERE userId = ?");
     $userStmt->bind_param("i", $user_id);
     $userStmt->execute();
-    $userResult = $userStmt->get_result();
-    $userData = $userResult->fetch_assoc();
-    $currentPoints = $userData['points'];
+    $currentPoints = $userStmt->get_result()->fetch_assoc()['points'];
     $userStmt->close();
 
-    $cartRes = $conn->query("SELECT c.quantity, m.points, m.itemId, m.itemName FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.userId = $user_id");
+    // =============================================
+    // Fetch cart with options
+    // =============================================
+    $cartRes = $conn->query("SELECT c.cartId, c.quantity, c.selected_options, m.points, m.itemId, m.itemName FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.userId = $user_id");
+    
     $grandTotal = 0;
     $itemsToOrder = [];
     $itemNames = [];
 
     while ($row = $cartRes->fetch_assoc()) {
-        $grandTotal += ($row['points'] * $row['quantity']);
+        $extras = calcExtraPoints($row['selected_options']);
+        $unitPrice = (int)$row['points'] + $extras;
+        $lineTotal = $unitPrice * (int)$row['quantity'];
+        $grandTotal += $lineTotal;
+        
+        $row['unit_price'] = $unitPrice;
+        $row['line_total'] = $lineTotal;
         $itemsToOrder[] = $row;
-        $itemNames[] = $row['itemName'] . ' (x' . $row['quantity'] . ')';
+        
+        // Format name with options
+        $formattedName = formatItemWithOptions($row['itemName'], $row['selected_options']);
+        $itemNames[] = $formattedName . ' (x' . $row['quantity'] . ')';
     }
 
-    // =============================================
-    // ✅ DELIVERY DATA ယူ (locationId → id)
-    // =============================================
+    // Delivery data
     $deliveryLocationId = intval($_POST['deliveryLocation'] ?? 0);
     $deliveryAddress = null;
     $deliveryFee = 0;
@@ -147,60 +177,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
         }
     }
 
-    // ✅ Total မှာ Delivery Fee ပါ ပေါင်း
     $grandTotal = $grandTotal + $deliveryFee;
 
     if ($currentPoints < $grandTotal) {
-        $error_msg = "Point မလုံလောက်ပါ။ လိုအပ်သော Point: " . number_format($grandTotal) . "၊ သင့်တွင်: " . number_format($currentPoints);
+        $error_msg = "Point မလုံလောက်ပါ။ လိုအပ်ချက်: " . number_format($grandTotal) . "၊ သင့်တွင်: " . number_format($currentPoints);
     } elseif ($grandTotal <= 0) {
         $error_msg = "Cart ထဲတွင် ပစ္စည်းမရှိပါ။";
     } else {
-               // 1. Tmporary Queue Number ဖြင့် အော်ဒါ အရင် Insert လုပ်မည်
-        $tempQueue = "Q000";
-
-        // =============================================
-        // ✅ INSERT ORDER with Delivery Columns
-        // =============================================
-        $stmt = $conn->prepare("INSERT INTO orders (queue_number, userId, orderType, pickupTime, specialRequest, totalAmount, points_used, status, deliveryAddress, deliveryFee, deliveryLat, deliveryLng, deliveryStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         
-        $userId = $user_id;
-        $totalAmt = $grandTotal;
-        $pointsUsed = $grandTotal;
-        $status = 'ordered';
+        $conn->begin_transaction();
         
-        $stmt->bind_param("sisssiissidds", 
-            $tempQueue, $userId, $orderType, $pickupTime, $specialRequest, 
-            $totalAmt, $pointsUsed, $status, 
-            $deliveryAddress, $deliveryFee, $deliveryLat, $deliveryLng, $deliveryStatus
-        );
-
-        if ($stmt->execute()) {
+        try {
+            // Insert order
+            $tempQueue = "Q000";
+            $stmt = $conn->prepare("INSERT INTO orders (queue_number, userId, orderType, pickupTime, specialRequest, totalAmount, points_used, status, deliveryAddress, deliveryFee, deliveryLat, deliveryLng, deliveryStatus) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            
+            $userId = $user_id;
+            $totalAmt = $grandTotal;
+            $pointsUsed = $grandTotal;
+            $status = 'ordered';
+            
+            $stmt->bind_param("sisssiissidds", 
+                $tempQueue, $userId, $orderType, $pickupTime, $specialRequest, 
+                $totalAmt, $pointsUsed, $status, 
+                $deliveryAddress, $deliveryFee, $deliveryLat, $deliveryLng, $deliveryStatus
+            );
+            $stmt->execute();
             $orderId = $stmt->insert_id;
             $stmt->close();
 
-            // 2. ကျလာသော Order ID ကိုယူ၍ Q + OrderID + Random2Digits ဖွဲ့ပြီး Update လုပ်မည်
+            // Queue number
             $queueNumber = "Q" . $orderId . rand(10, 99);
             $updateQStmt = $conn->prepare("UPDATE orders SET queue_number = ? WHERE orderId = ?");
             $updateQStmt->bind_param("si", $queueNumber, $orderId);
             $updateQStmt->execute();
             $updateQStmt->close();
 
-
-            $itemStmt = $conn->prepare("INSERT INTO order_items (orderId, itemId, quantity, price) VALUES (?, ?, ?, ?)");
+            // Insert order items WITH selected_options
+            $itemStmt = $conn->prepare("INSERT INTO order_items (orderId, itemId, quantity, price, selected_options) VALUES (?, ?, ?, ?, ?)");
+            
             foreach ($itemsToOrder as $item) {
-                $itemStmt->bind_param("iiid", $orderId, $item['itemId'], $item['quantity'], $item['points']);
+                $itemStmt->bind_param("iiids", 
+                    $orderId, 
+                    $item['itemId'], 
+                    $item['quantity'], 
+                    $item['unit_price'],
+                    $item['selected_options']
+                );
                 $itemStmt->execute();
             }
             $itemStmt->close();
 
+            // Deduct points
             $newPoints = $currentPoints - $grandTotal;
             $updateStmt = $conn->prepare("UPDATE users SET points = ? WHERE userId = ?");
             $updateStmt->bind_param("ii", $newPoints, $user_id);
             $updateStmt->execute();
             $updateStmt->close();
 
+            // Clear cart
             $conn->query("DELETE FROM cart WHERE userId = $user_id");
 
+            $conn->commit();
+
+            // Voucher data
             $orderData = [
                 'orderId' => $orderId,
                 'queueNumber' => $queueNumber,
@@ -216,16 +256,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['place_order'])) {
 
             header("Location: index.php?show_voucher=1");
             exit();
-        } else {
-            $error_msg = "Order မှာယူရာတွင် အမှားအယွင်းရှိနေပါသည်။ Error: " . $conn->error;
+            
+        } catch (Exception $e) {
+            $conn->rollback();
+            $error_msg = "Order မှာယူရာတွင် အမှားအယွင်း: " . $e->getMessage();
         }
     }
 }
 
-// Fetch Cart Items
-$cartItems = $conn->query("SELECT c.cartId, c.quantity, m.itemName, m.points, m.image FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.userId = $user_id");
+// =============================================
+// Fetch Cart Items WITH selected_options
+// =============================================
+$cartItems = $conn->query("SELECT c.cartId, c.quantity, c.selected_options, m.itemName, m.points, m.image FROM cart c JOIN menu_items m ON c.itemId = m.itemId WHERE c.userId = $user_id");
 
-// ✅ Fetch Delivery Locations (id ကို သုံး)
+// Delivery locations
 $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY deliveryFee ASC");
 ?>
 
@@ -293,21 +337,6 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
             background-color: #FF4757;
         }
 
-        .search-box { max-width: 380px; }
-        .search-box .form-control {
-            border-radius: 20px;
-            padding-left: 40px;
-            border: 1px solid #E2E8F0;
-            background-color: #F8FAFC;
-        }
-        .search-box .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #94A3B8;
-        }
-
         .qty-box {
             display: inline-flex;
             align-items: center;
@@ -363,9 +392,6 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
             background-color: #f5f5f5;
         }
 
-        /* ============================================= */
-        /* 🍽️ ORDER TYPE OPTIONS - STYLES                 */
-        /* ============================================= */
         .order-type-option {
             background: white;
             border: 2px solid #E2E8F0;
@@ -393,6 +419,22 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
 
         .order-type-option.active i { color: #1EAFBD; }
         .order-type-option.active .fw-bold { color: #1EAFBD; }
+
+        /* 🎯 ITEM OPTIONS BADGE */
+        .item-options-badge {
+            background: #EBF8F9;
+            color: #0F5860;
+            border: 1px solid #B8F0F5;
+            font-size: 0.68rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-top: 3px;
+            margin-right: 3px;
+        }
+        .item-options-badge i {
+            color: #1EAFBD;
+        }
     </style>
 </head>
 <body class="pb-5">
@@ -422,12 +464,20 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
 
     <?php if ($error_msg): ?>
         <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
-            <i class="fa-solid fa-circle-exclamation me-2"></i><?= $error_msg ?>
+            <i class="fa-solid fa-circle-exclamation me-2"></i><?= htmlspecialchars($error_msg) ?>
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     <?php endif; ?>
 
     <?php if ($cartItems && $cartItems->num_rows > 0): ?>
+        <?php 
+        // Collect items first for grand total calc
+        $cartItemsArr = [];
+        while ($row = $cartItems->fetch_assoc()) {
+            $cartItemsArr[] = $row;
+        }
+        ?>
+        
         <div class="card border-0 shadow-sm rounded-4 p-3 p-md-4 mb-4">
             
             <div class="d-none d-md-flex text-muted small fw-bold pb-2 border-bottom mb-3">
@@ -440,8 +490,10 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
 
             <?php 
             $grandTotal = 0;
-            while ($item = $cartItems->fetch_assoc()): 
-                $subtotal = $item['points'] * $item['quantity'];
+            foreach ($cartItemsArr as $item): 
+                $extras = calcExtraPoints($item['selected_options']);
+                $unitPrice = (int)$item['points'] + $extras;
+                $subtotal = $unitPrice * (int)$item['quantity'];
                 $grandTotal += $subtotal;
                 
                 $imgPath = 'https://via.placeholder.com/80?text=No+Image';
@@ -452,6 +504,9 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
                         $imgPath = 'uploads/' . basename($item['image']);
                     }
                 }
+                
+                // Get option names
+                $optionNames = getOptionNamesFromJson($item['selected_options']);
             ?>
                 <div class="d-flex align-items-center justify-content-between border-bottom py-3 gap-2">
                     
@@ -459,12 +514,31 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
                         <img src="<?= $imgPath ?>" class="rounded-3 shadow-sm" style="width: 60px; height: 60px; object-fit: cover;">
                         <div>
                             <h6 class="fw-bold text-dark mb-0"><?= htmlspecialchars($item['itemName']) ?></h6>
-                            <small class="text-muted d-md-none"><?= number_format($item['points']) ?> Points</small>
+                            
+                            <?php if (!empty($optionNames)): ?>
+                                <div class="mt-1">
+                                    <?php foreach ($optionNames as $optName): ?>
+                                        <span class="item-options-badge">
+                                            <i class="fa-solid fa-check me-1"></i><?= htmlspecialchars($optName) ?>
+                                        </span>
+                                    <?php endforeach; ?>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <small class="text-muted d-md-none d-block mt-1">
+                                <?= number_format($unitPrice) ?> Points
+                                <?php if ($extras > 0): ?>
+                                    <span class="text-warning">(includes +<?= number_format($extras) ?>)</span>
+                                <?php endif; ?>
+                            </small>
                         </div>
                     </div>
 
                     <div class="text-center d-none d-md-block" style="flex: 1;">
-                        <span class="fw-medium text-dark"><?= number_format($item['points']) ?></span>
+                        <span class="fw-medium text-dark"><?= number_format($unitPrice) ?></span>
+                        <?php if ($extras > 0): ?>
+                            <br><small class="text-warning">+<?= number_format($extras) ?></small>
+                        <?php endif; ?>
                     </div>
 
                     <div class="d-flex justify-content-center" style="flex: 1;">
@@ -484,7 +558,7 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
                     </div>
 
                     <div class="text-end" style="width: 35px;">
-                        <form method="POST">
+                        <form method="POST" onsubmit="return confirm('ဒီ item ကို ဖျက်မှာလား?');">
                             <input type="hidden" name="action" value="delete">
                             <input type="hidden" name="cartId" value="<?= $item['cartId'] ?>">
                             <button type="submit" class="btn btn-link text-danger p-0" title="Remove">
@@ -494,7 +568,7 @@ $deliveryLocations = $conn->query("SELECT * FROM delivery_locations ORDER BY del
                     </div>
 
                 </div>
-            <?php endwhile; ?>
+            <?php endforeach; ?>
 
             <div class="mt-4 pt-2">
                 <div class="d-flex justify-content-between align-items-center mb-1">
@@ -677,7 +751,7 @@ function adjustQty(cartId, change) {
 }
 
 // =============================================
-// 🍽️ ORDER TYPE SELECT
+// ORDER TYPE SELECT
 // =============================================
 let currentDeliveryFee = 0;
 let basePoints = <?= $grandTotal ?>;
@@ -749,6 +823,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const select = document.getElementById('pickupTimeSelect');
     const statusText = document.getElementById('timeStatusText');
     
+    if (!select) return;
+    
     const timeMap = {
         '08:00 AM': 8, '09:00 AM': 9, '10:00 AM': 10, '11:00 AM': 11,
         '12:00 PM': 12, '01:00 PM': 13, '02:00 PM': 14, '03:00 PM': 15,
@@ -808,62 +884,64 @@ document.addEventListener('DOMContentLoaded', function() {
     
     updatePickupTimes();
     
-    document.getElementById('checkoutModal').addEventListener('shown.bs.modal', function() {
-        updatePickupTimes();
-    });
+    const checkoutModal = document.getElementById('checkoutModal');
+    if (checkoutModal) {
+        checkoutModal.addEventListener('shown.bs.modal', function() {
+            updatePickupTimes();
+        });
+    }
 });
 
 // =============================================
 // FORM VALIDATION & SUBMIT
 // =============================================
-document.getElementById('checkoutForm').addEventListener('submit', function(e) {
-    const select = document.getElementById('pickupTimeSelect');
-    const selectedValue = select.value;
-    
-    const timeMap = {
-        '08:00 AM': 8, '09:00 AM': 9, '10:00 AM': 10, '11:00 AM': 11,
-        '12:00 PM': 12, '01:00 PM': 13, '02:00 PM': 14, '03:00 PM': 15,
-        '04:00 PM': 16, '05:00 PM': 17, '06:00 PM': 18, '07:00 PM': 19
-    };
-    
-    const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const selectedHour = timeMap[selectedValue];
-    
-    if (selectedHour === undefined) return true;
-    
-    let isValid = false;
-    if (selectedHour > currentHour) {
-        isValid = true;
-    } else if (selectedHour === currentHour && currentMinute < 30) {
-        isValid = true;
-    }
-    
-    if (!isValid) {
-        e.preventDefault();
-        Swal.fire({
-            icon: 'warning',
-            title: 'အချိန်မှားယွင်းနေပါသည်',
-            text: 'လက်ရှိအချိန်ထက် နောက်ကျတဲ့ အချိန်ကိုသာ ရွေးချယ်ပါ။',
-            confirmButtonColor: '#1EAFBD'
-        });
-        return false;
-    }
-    
-    // ✅ Submit Button Loading
-    const submitBtn = document.getElementById('submitOrderBtn');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>မှာယူနေပါသည်...';
-    }
-    
-    return true;
-});
+const checkoutForm = document.getElementById('checkoutForm');
+if (checkoutForm) {
+    checkoutForm.addEventListener('submit', function(e) {
+        const select = document.getElementById('pickupTimeSelect');
+        const selectedValue = select.value;
+        
+        const timeMap = {
+            '08:00 AM': 8, '09:00 AM': 9, '10:00 AM': 10, '11:00 AM': 11,
+            '12:00 PM': 12, '01:00 PM': 13, '02:00 PM': 14, '03:00 PM': 15,
+            '04:00 PM': 16, '05:00 PM': 17, '06:00 PM': 18, '07:00 PM': 19
+        };
+        
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const selectedHour = timeMap[selectedValue];
+        
+        if (selectedHour === undefined) return true;
+        
+        let isValid = false;
+        if (selectedHour > currentHour) {
+            isValid = true;
+        } else if (selectedHour === currentHour && currentMinute < 30) {
+            isValid = true;
+        }
+        
+        if (!isValid) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'warning',
+                title: 'အချိန်မှားယွင်းနေပါသည်',
+                text: 'လက်ရှိအချိန်ထက် နောက်ကျတဲ့ အချိန်ကိုသာ ရွေးချယ်ပါ။',
+                confirmButtonColor: '#1EAFBD'
+            });
+            return false;
+        }
+        
+        const submitBtn = document.getElementById('submitOrderBtn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-2"></i>မှာယူနေပါသည်...';
+        }
+        
+        return true;
+    });
+}
 
-// =============================================
-// DEBUG - Submit Button Check
-// =============================================
 console.log('✅ Cart Page Loaded');
 console.log('📊 Base Points:', basePoints);
 </script>
