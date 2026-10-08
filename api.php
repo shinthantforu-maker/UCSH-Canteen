@@ -1,143 +1,191 @@
 <?php
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
 require_once 'db.php';
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
-$action = $_GET['action'] ?? '';
-
-// ============================================================
-// 1. TRACK ORDER - NO AUTH REQUIRED (GUEST CAN TRACK)
-// ============================================================
-if ($action === 'track_order' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $queueNumber = trim($_POST['queue'] ?? '');
-    
-    if (empty($queueNumber)) {
-        echo json_encode(['status' => 'error', 'message' => 'Queue number is required.']);
-        exit();
-    }
-
-    $stmt = $conn->prepare("SELECT orderId, queue_number, status, pickupTime, orderType, totalAmount, points_used, specialRequest, rejectionReason, createdAt FROM orders WHERE queue_number = ?");
-    $stmt->bind_param("s", $queueNumber);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows > 0) {
-        $order = $result->fetch_assoc();
-        echo json_encode(['status' => 'success', 'order' => $order]);
-    } else {
-        echo json_encode(['status' => 'error', 'message' => 'Order not found.']);
-    }
-    $stmt->close();
-    exit();
-}
-
-// ============================================================
-// 2. ALL OTHER ACTIONS - AUTH REQUIRED
-// ============================================================
 if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
-    exit();
+    echo json_encode(['status' => 'error', 'message' => 'Please login first']);
+    exit;
 }
 
 $user_id = $_SESSION['user_id'];
+$action = $_GET['action'] ?? $_POST['action'] ?? '';
 
-// 2. Toggle Like
-if ($action === 'toggle_like' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $itemId = intval($_POST['itemId'] ?? 0);
+// =============================================
+// 1. GET ITEM OPTIONS
+// =============================================
+if ($action === 'get_item_options') {
+    $itemId = intval($_GET['itemId'] ?? 0);
+    $groups = $itemId > 0 ? getItemOptionGroups($conn, $itemId, true) : [];
     
-    $check = $conn->prepare("SELECT likeId FROM liked_items WHERE userId = ? AND itemId = ?");
-    $check->bind_param("ii", $user_id, $itemId);
-    $check->execute();
-    $res = $check->get_result();
-
-    if ($res->num_rows > 0) {
-        $del = $conn->prepare("DELETE FROM liked_items WHERE userId = ? AND itemId = ?");
-        $del->bind_param("ii", $user_id, $itemId);
-        $del->execute();
-        $liked = false;
-    } else {
-        $ins = $conn->prepare("INSERT INTO liked_items (userId, itemId) VALUES (?, ?)");
-        $ins->bind_param("ii", $user_id, $itemId);
-        $ins->execute();
-        $liked = true;
-    }
-
-    $countRes = $conn->query("SELECT COUNT(*) as count FROM liked_items WHERE userId = $user_id");
-    $likeCount = $countRes->fetch_assoc()['count'] ?? 0;
-
-    echo json_encode(['status' => 'success', 'liked' => $liked, 'likeCount' => $likeCount]);
-    exit();
+    echo json_encode([
+        'has_options' => count($groups) > 0,
+        'groups' => $groups
+    ]);
+    exit;
 }
 
-// 3. Add to Cart
-if ($action === 'add_to_cart' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+// =============================================
+// 2. ADD TO CART (with options)
+// =============================================
+if ($action === 'add_to_cart') {
     $itemId = intval($_POST['itemId'] ?? 0);
-    $qty = intval($_POST['quantity'] ?? 1);
-
-    // Get item points
-    $itemStmt = $conn->prepare("SELECT points FROM menu_items WHERE itemId = ? AND isAvailable = 1");
-    $itemStmt->bind_param("i", $itemId);
-    $itemStmt->execute();
-    $itemResult = $itemStmt->get_result();
-    $itemData = $itemResult->fetch_assoc();
-    $itemPoints = $itemData['points'] ?? 0;
-    $itemStmt->close();
-
-    if ($itemPoints <= 0) {
-        echo json_encode(['status' => 'error', 'message' => 'Item not available.']);
-        exit();
+    $quantity = max(1, intval($_POST['quantity'] ?? 1));
+    $selectedRaw = $_POST['options'] ?? '[]';
+    $selected = json_decode($selectedRaw, true) ?: [];
+    
+    if ($itemId <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'Invalid item']);
+        exit;
     }
-
-    // Get user points
-    $userStmt = $conn->prepare("SELECT points FROM users WHERE userId = ?");
-    $userStmt->bind_param("i", $user_id);
-    $userStmt->execute();
-    $userResult = $userStmt->get_result();
-    $userData = $userResult->fetch_assoc();
-    $userPoints = $userData['points'] ?? 0;
-    $userStmt->close();
-
-    $totalPointsNeeded = $itemPoints * $qty;
-
-    if ($userPoints < $totalPointsNeeded) {
-        echo json_encode([
-            'status' => 'error', 
-            'message' => 'Point မလုံလောက်ပါ။ လိုအပ်သော Point: ' . number_format($totalPointsNeeded) . '၊ သင့်တွင်: ' . number_format($userPoints)
-        ]);
-        exit();
+    
+    // Item fetch
+    $stmt = $conn->prepare("SELECT * FROM menu_items WHERE itemId = ? AND isAvailable = 1");
+    $stmt->bind_param("i", $itemId);
+    $stmt->execute();
+    $item = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if (!$item) {
+        echo json_encode(['status' => 'error', 'message' => 'Item not available']);
+        exit;
     }
-
-    $check = $conn->prepare("SELECT cartId, quantity FROM cart WHERE userId = ? AND itemId = ?");
-    $check->bind_param("ii", $user_id, $itemId);
-    $check->execute();
-    $res = $check->get_result();
-
-    if ($res->num_rows > 0) {
-        $row = $res->fetch_assoc();
-        $newQty = $row['quantity'] + $qty;
-        $newTotalPoints = $itemPoints * $newQty;
-        if ($userPoints < $newTotalPoints) {
+    
+    // Validate options
+    $groups = getItemOptionGroups($conn, $itemId, true);
+    $validatedOptions = [];
+    $extraPoints = 0;
+    
+    $selectedByGroup = [];
+    foreach ($selected as $sel) {
+        $gid = intval($sel['groupId'] ?? 0);
+        $oid = intval($sel['optionId'] ?? 0);
+        if ($gid > 0 && $oid > 0) {
+            $selectedByGroup[$gid][] = $oid;
+        }
+    }
+    
+    foreach ($groups as $g) {
+        $picked = $selectedByGroup[$g['groupId']] ?? [];
+        
+        // Required check
+        if ($g['isRequired'] && empty($picked)) {
             echo json_encode([
                 'status' => 'error',
-                'message' => 'Point မလုံလောက်ပါ။ စုစုပေါင်းလိုအပ်သော Point: ' . number_format($newTotalPoints)
+                'message' => "'{$g['groupName']}' ကို ရွေးပါ"
             ]);
-            exit();
+            exit;
         }
-        $upd = $conn->prepare("UPDATE cart SET quantity = ? WHERE cartId = ?");
-        $upd->bind_param("ii", $newQty, $row['cartId']);
-        $upd->execute();
-    } else {
-        $ins = $conn->prepare("INSERT INTO cart (userId, itemId, quantity) VALUES (?, ?, ?)");
-        $ins->bind_param("iii", $user_id, $itemId, $qty);
-        $ins->execute();
+        
+        // Validate each option belongs to this group
+        foreach ($picked as $oid) {
+            foreach ($g['options'] as $opt) {
+                if ($opt['optionId'] == $oid) {
+                    $validatedOptions[] = [
+                        'groupId' => (int)$g['groupId'],
+                        'optionId' => (int)$opt['optionId'],
+                        'optionName' => $opt['optionName'],
+                        'extraPoints' => (int)$opt['extraPoints']
+                    ];
+                    $extraPoints += (int)$opt['extraPoints'];
+                    break;
+                }
+            }
+        }
     }
-
-    $countRes = $conn->query("SELECT SUM(quantity) as count FROM cart WHERE userId = $user_id");
-    $cartCount = $countRes->fetch_assoc()['count'] ?? 0;
-
-    echo json_encode(['status' => 'success', 'cartCount' => $cartCount]);
-    exit();
+    
+    $unitPrice = (int)$item['points'] + $extraPoints;
+    $totalNeeded = $unitPrice * $quantity;
+    
+    // User points
+    $uStmt = $conn->prepare("SELECT points FROM users WHERE userId = ?");
+    $uStmt->bind_param("i", $user_id);
+    $uStmt->execute();
+    $userPoints = (int)($uStmt->get_result()->fetch_assoc()['points'] ?? 0);
+    $uStmt->close();
+    
+    // Existing cart total
+    $cartTotalStmt = $conn->prepare("
+        SELECT c.quantity, c.selected_options, m.points 
+        FROM cart c 
+        JOIN menu_items m ON c.itemId = m.itemId 
+        WHERE c.userId = ?
+    ");
+    $cartTotalStmt->bind_param("i", $user_id);
+    $cartTotalStmt->execute();
+    $cartRes = $cartTotalStmt->get_result();
+    $existingTotal = 0;
+    while ($row = $cartRes->fetch_assoc()) {
+        $rowExtra = calcExtraPoints($row['selected_options']);
+        $existingTotal += ((int)$row['points'] + $rowExtra) * (int)$row['quantity'];
+    }
+    $cartTotalStmt->close();
+    
+    if (($existingTotal + $totalNeeded) > $userPoints) {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'Point မလုံလောက်ပါ။ လိုအပ်ချက်: ' . number_format($existingTotal + $totalNeeded) . '၊ သင့်တွင်: ' . number_format($userPoints)
+        ]);
+        exit;
+    }
+    
+    // Signature for merge
+    $sigIds = array_map(fn($o) => $o['optionId'], $validatedOptions);
+    sort($sigIds);
+    $signature = implode('-', $sigIds);
+    $optionsJson = empty($validatedOptions) ? null : json_encode($validatedOptions, JSON_UNESCAPED_UNICODE);
+    
+    // Merge check
+    if ($optionsJson === null) {
+        $mergeStmt = $conn->prepare("
+            SELECT cartId, quantity FROM cart 
+            WHERE userId = ? AND itemId = ? AND selected_options IS NULL
+        ");
+        $mergeStmt->bind_param("ii", $user_id, $itemId);
+    } else {
+        $mergeStmt = $conn->prepare("
+            SELECT cartId, quantity FROM cart 
+            WHERE userId = ? AND itemId = ? AND selected_options = ?
+        ");
+        $mergeStmt->bind_param("iis", $user_id, $itemId, $optionsJson);
+    }
+    $mergeStmt->execute();
+    $existing = $mergeStmt->get_result()->fetch_assoc();
+    $mergeStmt->close();
+    
+    if ($existing) {
+        $newQty = (int)$existing['quantity'] + $quantity;
+        $upd = $conn->prepare("UPDATE cart SET quantity = ? WHERE cartId = ?");
+        $upd->bind_param("ii", $newQty, $existing['cartId']);
+        $upd->execute();
+        $upd->close();
+        echo json_encode(['status' => 'success', 'message' => 'Cart ထဲသို့ ထည့်ပြီးပါပြီ', 'merged' => true]);
+        exit;
+    }
+    
+    // Insert new
+    if ($optionsJson === null) {
+        $ins = $conn->prepare("INSERT INTO cart (userId, itemId, quantity) VALUES (?, ?, ?)");
+        $ins->bind_param("iii", $user_id, $itemId, $quantity);
+    } else {
+        $ins = $conn->prepare("INSERT INTO cart (userId, itemId, quantity, selected_options) VALUES (?, ?, ?, ?)");
+        $ins->bind_param("iiis", $user_id, $itemId, $quantity, $optionsJson);
+    }
+    
+    if (!$ins->execute()) {
+        echo json_encode(['status' => 'error', 'message' => 'DB error: ' . $conn->error]);
+        exit;
+    }
+    $ins->close();
+    
+    echo json_encode(['status' => 'success', 'message' => 'Cart ထဲသို့ ထည့်ပြီးပါပြီ']);
+    exit;
 }
-?>
+
+echo json_encode(['status' => 'error', 'message' => 'Unknown action']);
