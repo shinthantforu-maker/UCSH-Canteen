@@ -59,10 +59,11 @@ $userStmt->close();
 // Announcements
 $announcements = $conn->query("SELECT * FROM announcements ORDER BY announcementId DESC LIMIT 3");
 
-// ✅ Menu Items - Out of Stock ပါ အကုန်ယူ (isAvailable DESC ဖြင့် စီ)
+// Menu Items
 $menu_query = "SELECT m.*, 
                (SELECT AVG(rating) FROM ratings WHERE itemId = m.itemId) as avg_rating,
-               (SELECT COUNT(*) FROM ratings WHERE itemId = m.itemId) as rating_count
+               (SELECT COUNT(*) FROM ratings WHERE itemId = m.itemId) as rating_count,
+               (SELECT COUNT(*) FROM menu_option_groups WHERE itemId = m.itemId) as option_group_count
                FROM menu_items m 
                ORDER BY m.isAvailable DESC, m.itemId DESC";
 
@@ -74,7 +75,7 @@ while ($cat = $catResult->fetch_assoc()) {
     $categories[] = $cat['category'];
 }
 
-// Check for voucher data
+// Voucher
 $showVoucher = isset($_GET['show_voucher']) && isset($_SESSION['voucher_data']);
 $voucherData = $showVoucher ? $_SESSION['voucher_data'] : null;
 
@@ -207,9 +208,7 @@ if ($showVoucher) {
             transform: translateY(-3px);
         }
 
-        /* ============================================= */
-        /* 🔲 MENU CARD - EQUAL HEIGHT + GRID FIX        */
-        /* ============================================= */
+        /* MENU CARD */
         .menu-item-card {
             display: flex;
             flex-direction: column;
@@ -281,28 +280,28 @@ if ($showVoucher) {
             margin-bottom: 8px;
         }
 
-        /* ============================================= */
-        /* 🔴 OUT OF STOCK OVERLAY (Box ထဲမှာပဲ နေရာယူ)  */
-        /* ============================================= */
-        .menu-card.out-of-stock {
-            position: relative;
+        .options-indicator {
+            background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+            color: #92400E;
+            border: 1px solid #FCD34D;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
         }
 
-        .menu-card.out-of-stock .menu-card-img {
-            filter: grayscale(50%) brightness(0.85);
-        }
-
-        .menu-card.out-of-stock .stock-overlay {
-            display: flex;
-        }
+        /* OUT OF STOCK */
+        .menu-card.out-of-stock { position: relative; }
+        .menu-card.out-of-stock .menu-card-img { filter: grayscale(50%) brightness(0.85); }
+        .menu-card.out-of-stock .stock-overlay { display: flex; }
 
         .stock-overlay {
             display: none;
             position: absolute;
-            left: 0;
-            right: 0;
-            top: 30%;
-            bottom: 0;
+            left: 0; right: 0; top: 30%; bottom: 0;
             background: linear-gradient(180deg, 
                 rgba(220, 38, 38, 0) 0%, 
                 rgba(220, 38, 38, 0.35) 25%,
@@ -397,7 +396,7 @@ if ($showVoucher) {
             border-color: var(--brand-color);
         }
 
-        /* Voucher Styles */
+        /* Voucher */
         .voucher-content { background: white; border: 1px solid #e2e8f0; }
         .voucher-header { background: #0d1b2a; color: white; padding: 20px; text-align: center; }
         .voucher-divider {
@@ -409,7 +408,6 @@ if ($showVoucher) {
 
         /* AI RECOMMENDATION */
         .ai-section { animation: aiFadeIn 0.6s ease-out; }
-
         @keyframes aiFadeIn {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
@@ -725,7 +723,26 @@ if ($showVoucher) {
             opacity: 0.9; margin: 2px 0 0 0;
         }
 
-        /* AI CHATBOT */
+        /* 🎯 OPTIONS MODAL */
+        .option-choice {
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+        .option-choice:hover {
+            background: #EBF8F9 !important;
+            border-color: #1EAFBD !important;
+        }
+        .option-choice:has(input:checked) {
+            background: #EBF8F9 !important;
+            border-color: #1EAFBD !important;
+        }
+        .option-choice input:checked ~ span {
+            color: #1EAFBD;
+            font-weight: 700;
+        }
+
+        /* CHATBOT */
         .chatbot-widget {
             position: fixed;
             bottom: 20px;
@@ -1004,11 +1021,7 @@ if ($showVoucher) {
             box-shadow: 0 4px 12px rgba(30, 175, 189, 0.4);
         }
 
-        /* ============================================= */
-        /* 📱 RESPONSIVE - 4 Columns Default             */
-        /* ============================================= */
-        
-        /* Mobile - 2 columns */
+        /* RESPONSIVE */
         @media (max-width: 576px) {
             body { font-size: 14px; }
             .container { padding-left: 12px; padding-right: 12px; }
@@ -1029,17 +1042,14 @@ if ($showVoucher) {
             .stock-overlay { padding-bottom: 60px; }
         }
 
-        /* Tablet - 3 columns */
         @media (min-width: 577px) and (max-width: 992px) {
             .ai-suggestions-grid { grid-template-columns: repeat(3, 1fr); }
         }
 
-        /* Desktop - 4 columns */
         @media (min-width: 993px) and (max-width: 1399px) {
             .ai-suggestions-grid { grid-template-columns: repeat(4, 1fr); }
         }
 
-        /* ✅ Large Screen - 4 columns STRICT */
         @media (min-width: 1400px) {
             #menuContainer {
                 display: grid !important;
@@ -1066,7 +1076,7 @@ if ($showVoucher) {
 
 <?php include 'nav.php'; ?>
 
-<!-- Voucher Modal (QR မပါ) -->
+<!-- Voucher Modal -->
 <div class="modal fade" id="voucherModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -1246,7 +1256,7 @@ if ($showVoucher) {
         <?php endforeach; ?>
     </div>
 
-    <!-- ✅ Menu Container - Grid Layout -->
+    <!-- Menu Container -->
     <div class="row g-2 g-md-3" id="menuContainer">
         <?php if ($menu_items && $menu_items->num_rows > 0): ?>
             <?php while ($item = $menu_items->fetch_assoc()): ?>
@@ -1263,6 +1273,7 @@ if ($showVoucher) {
 
                     $is_liked = in_array($item['itemId'], $user_liked_item_ids);
                     $is_out = ($item['isAvailable'] == 0);
+                    $has_options = ($item['option_group_count'] > 0);
                 ?>
 
                 <div class="col-6 col-sm-6 col-md-4 col-lg-3 menu-item-card" 
@@ -1288,10 +1299,16 @@ if ($showVoucher) {
 
                         <div class="card-body d-flex flex-column">
                             
-                            <div style="min-height: 26px;">
+                            <div style="min-height: 26px;" class="d-flex justify-content-between align-items-start gap-1">
                                 <span class="badge bg-brand-light text-brand border-0 align-self-start mb-2 px-2 py-1 rounded-2 fs-7 fw-medium">
                                     <?= htmlspecialchars($item['category'] ?? 'General') ?>
                                 </span>
+                                <?php if ($has_options): ?>
+                                    <span class="options-indicator">
+                                        <i class="fa-solid fa-list-check"></i>
+                                        ရွေးချယ်ရန်
+                                    </span>
+                                <?php endif; ?>
                             </div>
                             
                             <h6 class="card-title fw-bold text-dark mb-1" 
@@ -1384,6 +1401,35 @@ if ($showVoucher) {
 
 </div>
 
+<!-- ============================================= -->
+<!-- 🎯 OPTIONS MODAL (Add to Cart)                -->
+<!-- ============================================= -->
+<div class="modal fade" id="optionsModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rounded-4 border-0 shadow-lg">
+            <div class="modal-header bg-light border-0">
+                <h6 class="fw-bold m-0">
+                    <i class="fa-solid fa-list-check text-brand me-2"></i>
+                    <span id="optionsModalTitle">ရွေးချယ်ပါ</span>
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4" id="optionsModalBody">
+                <!-- Dynamic -->
+            </div>
+            <div class="modal-footer bg-light border-0">
+                <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">
+                    မလုပ်တော့ပါ
+                </button>
+                <button type="button" class="btn btn-brand btn-sm rounded-3 px-4 fw-bold" 
+                        onclick="confirmAddToCart()" id="optionsConfirmBtn">
+                    <i class="fa-solid fa-cart-plus me-1"></i>Cart ထဲထည့်မည်
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- AI CHATBOT WIDGET -->
 <div class="chatbot-widget" id="chatbotWidget">
     <button class="chatbot-toggle-btn" onclick="toggleChatbot()" id="chatbotToggle">
@@ -1450,7 +1496,7 @@ if ($showVoucher) {
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // =============================================
-// ✅ FORCE 4 COLUMNS ON DESKTOP
+// GRID LAYOUT
 // =============================================
 function applyGridLayout() {
     const container = document.getElementById('menuContainer');
@@ -1525,52 +1571,249 @@ if (searchInput) {
 }
 
 // =============================================
-// ADD TO CART
+// 🎯 ADD TO CART WITH OPTIONS
 // =============================================
+let currentOptionsItemId = null;
+let currentOptionsGroups = [];
+let currentOptionsSelection = {};
+let currentBasePoints = 0;
+
 function addToCart(itemId) {
+    fetch('api.php?action=get_item_options&itemId=' + itemId)
+        .then(r => r.json())
+        .then(data => {
+            if (data.has_options) {
+                showOptionsModal(itemId, data.groups);
+            } else {
+                proceedAddToCart(itemId, []);
+            }
+        })
+        .catch(err => {
+            console.error('Options fetch error:', err);
+            proceedAddToCart(itemId, []);
+        });
+}
+
+function showOptionsModal(itemId, groups) {
+    currentOptionsItemId = itemId;
+    currentOptionsGroups = groups;
+    currentOptionsSelection = {};
+    currentBasePoints = 0;
+    
+    groups.forEach(g => {
+        currentOptionsSelection[g.groupId] = [];
+    });
+    
+    // Base points — card မှ ရှာ
+    const card = document.querySelector(`[onclick*="addToCart(${itemId})"]`);
+    if (card) {
+        const cardEl = card.closest('.menu-card');
+        if (cardEl) {
+            const ptsEl = cardEl.querySelector('.points-text');
+            if (ptsEl) {
+                currentBasePoints = parseInt(ptsEl.textContent.replace(/[^0-9]/g, '')) || 0;
+            }
+        }
+    }
+    
+    const title = document.getElementById('optionsModalTitle');
+    const body = document.getElementById('optionsModalBody');
+    
+    title.textContent = 'ရွေးချယ်ပါ';
+    
+    let html = '';
+    groups.forEach((group) => {
+        const isRadio = group.maxSelect == 1;
+        html += `
+            <div class="mb-4" data-group-id="${group.groupId}">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <h6 class="fw-bold mb-0">
+                        ${escapeHtml(group.groupName)}
+                        ${group.isRequired == 1 
+                            ? '<span class="badge bg-danger-subtle text-danger ms-1" style="font-size:0.65rem;">Required</span>' 
+                            : '<span class="badge bg-secondary-subtle text-secondary ms-1" style="font-size:0.65rem;">Optional</span>'}
+                    </h6>
+                </div>
+                <div class="d-flex flex-column gap-2">
+        `;
+        
+        group.options.forEach(opt => {
+            const optId = opt.optionId;
+            const extraLabel = opt.extraPoints > 0 
+                ? `<span class="badge bg-warning-subtle text-warning ms-2">+${Number(opt.extraPoints).toLocaleString()} pts</span>` 
+                : '';
+            
+            html += `
+                <label class="option-choice d-flex justify-content-between align-items-center p-2 border rounded-3" 
+                       data-group-id="${group.groupId}"
+                       data-option-id="${optId}">
+                    <div class="d-flex align-items-center gap-2">
+                        <input type="${isRadio ? 'radio' : 'checkbox'}" 
+                               name="group_${group.groupId}" 
+                               value="${optId}"
+                               data-group-id="${group.groupId}"
+                               data-option-id="${optId}"
+                               data-extra="${opt.extraPoints}"
+                               data-max="${group.maxSelect}"
+                               class="form-check-input m-0 option-input">
+                        <span class="fw-medium">${escapeHtml(opt.optionName)}</span>
+                    </div>
+                    ${extraLabel}
+                </label>
+            `;
+        });
+        
+        html += `</div></div>`;
+    });
+    
+    html += `
+        <div class="alert alert-light border rounded-3 d-flex justify-content-between align-items-center mb-0">
+            <span class="fw-bold text-dark">Total Points:</span>
+            <span class="fw-bold text-brand fs-5" id="optionsTotalDisplay">${currentBasePoints.toLocaleString()}</span>
+        </div>
+    `;
+    
+    body.innerHTML = html;
+    
+    body.querySelectorAll('.option-input').forEach(inp => {
+        inp.addEventListener('change', handleOptionChange);
+    });
+    
+    updateConfirmButton();
+    
+    const modal = new bootstrap.Modal(document.getElementById('optionsModal'));
+    modal.show();
+}
+
+function handleOptionChange(e) {
+    const inp = e.target;
+    const groupId = inp.dataset.groupId;
+    const optionId = parseInt(inp.dataset.optionId);
+    const maxSelect = parseInt(inp.dataset.max);
+    const isRadio = inp.type === 'radio';
+    
+    if (isRadio) {
+        currentOptionsSelection[groupId] = [optionId];
+    } else {
+        if (!currentOptionsSelection[groupId]) currentOptionsSelection[groupId] = [];
+        if (inp.checked) {
+            if (currentOptionsSelection[groupId].length >= maxSelect) {
+                inp.checked = false;
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'ရွေးလို့မရပါ',
+                    text: `ဒီ group မှာ ${maxSelect} ခုသာ ရွေးလို့ရပါတယ်`,
+                    timer: 1500,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top'
+                });
+                return;
+            }
+            currentOptionsSelection[groupId].push(optionId);
+        } else {
+            currentOptionsSelection[groupId] = currentOptionsSelection[groupId].filter(id => id !== optionId);
+        }
+    }
+    
+    updateConfirmButton();
+    updateOptionsTotal();
+}
+
+function updateOptionsTotal() {
+    let extra = 0;
+    Object.keys(currentOptionsSelection).forEach(gid => {
+        currentOptionsSelection[gid].forEach(optId => {
+            const inp = document.querySelector(`.option-input[data-option-id="${optId}"]`);
+            if (inp) extra += parseInt(inp.dataset.extra) || 0;
+        });
+    });
+    
+    const total = currentBasePoints + extra;
+    const disp = document.getElementById('optionsTotalDisplay');
+    if (disp) disp.textContent = total.toLocaleString() + ' Points';
+}
+
+function updateConfirmButton() {
+    const btn = document.getElementById('optionsConfirmBtn');
+    if (!btn) return;
+    
+    let allRequiredSelected = true;
+    currentOptionsGroups.forEach(g => {
+        if (g.isRequired == 1 && (!currentOptionsSelection[g.groupId] || currentOptionsSelection[g.groupId].length === 0)) {
+            allRequiredSelected = false;
+        }
+    });
+    
+    btn.disabled = !allRequiredSelected;
+    btn.style.opacity = allRequiredSelected ? '1' : '0.5';
+}
+
+function confirmAddToCart() {
+    if (!currentOptionsItemId) return;
+    
+    const optionsArr = [];
+    currentOptionsGroups.forEach(g => {
+        const picked = currentOptionsSelection[g.groupId] || [];
+        picked.forEach(optId => {
+            const inp = document.querySelector(`.option-input[data-option-id="${optId}"]`);
+            if (inp) {
+                optionsArr.push({
+                    groupId: parseInt(g.groupId),
+                    optionId: optId,
+                    extraPoints: parseInt(inp.dataset.extra) || 0
+                });
+            }
+        });
+    });
+    
+    bootstrap.Modal.getInstance(document.getElementById('optionsModal')).hide();
+    proceedAddToCart(currentOptionsItemId, optionsArr);
+}
+
+function proceedAddToCart(itemId, options) {
     let formData = new FormData();
     formData.append('itemId', itemId);
     formData.append('quantity', 1);
-
-    fetch('api.php?action=add_to_cart', { 
-        method: 'POST', 
-        body: formData 
-    })
-    .then(res => res.json())
-    .then(data => {
-        if(data.status === 'success') {
-            let cartBadge = document.getElementById('cartBadge');
-            let currentCount = parseInt(cartBadge.innerText) || 0;
-            cartBadge.innerText = currentCount + 1;
-
-            Swal.fire({
-                icon: 'success',
-                title: 'Cart ထဲသို့ ထည့်ပြီးပါပြီ',
-                timer: 1500,
-                showConfirmButton: false,
-                toast: true,
-                position: 'top',
-                timerProgressBar: true,
-                background: '#07494f',
-                color: '#FFFFFF',
-                iconColor: '#FFFFFF',
-            });
-        } else {
+    formData.append('options', JSON.stringify(options));
+    
+    fetch('api.php?action=add_to_cart', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(data => {
+            if (data.status === 'success') {
+                let cartBadge = document.getElementById('cartBadge');
+                if (cartBadge) {
+                    let currentCount = parseInt(cartBadge.innerText) || 0;
+                    cartBadge.innerText = currentCount + 1;
+                }
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Cart ထဲသို့ ထည့်ပြီးပါပြီ',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    toast: true,
+                    position: 'top',
+                    timerProgressBar: true,
+                    background: '#07494f',
+                    color: '#FFFFFF',
+                    iconColor: '#FFFFFF',
+                });
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'မအောင်မြင်ပါ',
+                    text: data.message || 'အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်',
+                    confirmButtonColor: '#1EAFBD',
+                });
+            }
+        })
+        .catch(err => {
             Swal.fire({
                 icon: 'error',
-                title: 'Point မလုံလောက်ပါ',
-                text: data.message || 'သင့်တွင် Point မလုံလောက်ပါ။',
-                confirmButtonColor: '#1EAFBD',
+                title: 'အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်',
+                confirmButtonColor: '#1EAFBD'
             });
-        }
-    })
-    .catch(err => {
-        Swal.fire({
-            icon: 'error',
-            title: 'အမှားတစ်ခု ဖြစ်ပေါ်နေပါသည်',
-            confirmButtonColor: '#1EAFBD'
         });
-    });
 }
 
 // =============================================
@@ -1627,7 +1870,7 @@ function downloadVoucher() {
 }
 
 // =============================================
-// SHOW VOUCHER ON LOAD (QR မပါ)
+// SHOW VOUCHER
 // =============================================
 <?php if ($showVoucher && $voucherData): ?>
 document.addEventListener('DOMContentLoaded', function() {
