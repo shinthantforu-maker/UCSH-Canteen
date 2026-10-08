@@ -253,7 +253,8 @@ while ($row = $catStmt->fetch_assoc()) {
 
 // FETCH ORDERS
 $orders_query = "SELECT o.*, u.username, 
-                (SELECT GROUP_CONCAT(CONCAT(m.itemId, ':', m.itemName, ' (', oi.quantity, ')') SEPARATOR '|') 
+                (SELECT GROUP_CONCAT(CONCAT(m.itemId, ':', m.itemName, ':', 
+                    COALESCE(oi.selected_options, ''), ':', oi.quantity) SEPARATOR '|') 
                  FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = o.orderId) as items_with_id,
                 (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ', ') 
                  FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = o.orderId) as items 
@@ -938,33 +939,66 @@ function showOrderDetails(orderId) {
             let rejectedTotal = 0;
             
             if (items && items.length > 0) {
-                items.forEach(item => {
-                    const itemTotal = item.price * item.quantity;
-                    totalPoints += itemTotal;
-                    
-                    if (item.is_rejected) {
-                        // ✅ REJECTED ITEM - Red Line Through + Badge
-                        rejectedTotal += itemTotal;
-                        itemsHtml += `
-                            <tr style="opacity: 0.7; background: #fff5f5;">
-                                <td>
-                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
-                                        <i class="fa-solid fa-circle-xmark me-1"></i>
-                                        ${item.itemName}
-                                    </span>
-                                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
-                                </td>
-                                <td class="text-center">
-                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
-                                </td>
-                                <td class="text-end">
-                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
-                                </td>
-                                <td class="text-end">
-                                    <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
-                                </td>
-                            </tr>
-                        `;
+               items.forEach(item => {
+    const itemTotal = item.price * item.quantity;
+    totalPoints += itemTotal;
+    
+    // ✅ Build options badge HTML
+    let optionsHtml = '';
+    if (item.options && item.options.length > 0) {
+        optionsHtml = '<div class="mt-1">';
+        item.options.forEach(opt => {
+            const extra = opt.extraPoints > 0 
+                ? `<span class="text-warning fw-bold ms-1">(+${Number(opt.extraPoints).toLocaleString()})</span>` 
+                : '';
+            optionsHtml += `<span class="badge" style="background: #EBF8F9; color: #0F5860; border: 1px solid #B8F0F5; font-size: 0.65rem; margin-right: 3px;">
+                <i class="fa-solid fa-check me-1" style="color: #1EAFBD;"></i>${opt.optionName}${extra}
+            </span>`;
+        });
+        optionsHtml += '</div>';
+    }
+    
+    if (item.is_rejected) {
+        // REJECTED ITEM
+        rejectedTotal += itemTotal;
+        itemsHtml += `
+            <tr style="opacity: 0.7; background: #fff5f5;">
+                <td>
+                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
+                        <i class="fa-solid fa-circle-xmark me-1"></i>
+                        ${item.itemName}
+                    </span>
+                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
+                    ${optionsHtml}
+                </td>
+                <td class="text-center">
+                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
+                </td>
+                <td class="text-end">
+                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
+                </td>
+                <td class="text-end">
+                    <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
+                </td>
+            </tr>
+        `;
+    } else {
+        // ACCEPTED ITEM
+        acceptedTotal += itemTotal;
+        itemsHtml += `
+            <tr>
+                <td>
+                    <i class="fa-solid fa-circle-check text-success me-1"></i>
+                    <strong>${item.itemName}</strong>
+                    ${optionsHtml}
+                </td>
+                <td class="text-center">${item.quantity}</td>
+                <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
+                <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
+            </tr>
+        `;
+    }
+});
                     } else {
                         // ✅ ACCEPTED ITEM - Normal
                         acceptedTotal += itemTotal;
