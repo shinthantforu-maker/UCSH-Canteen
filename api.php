@@ -9,18 +9,18 @@ if (session_status() === PHP_SESSION_NONE) {
 require_once 'db.php';
 header('Content-Type: application/json; charset=utf-8');
 
-if (!isset($_SESSION['user_id'])) {
-    echo json_encode(['status' => 'error', 'message' => 'Please login first']);
-    exit;
-}
-
-$user_id = $_SESSION['user_id'];
+$user_id = $_SESSION['user_id'] ?? 0;
 $action = $_GET['action'] ?? $_POST['action'] ?? '';
 
 // =============================================
 // 1. GET ITEM OPTIONS
 // =============================================
 if ($action === 'get_item_options') {
+    if (!$user_id) {
+        echo json_encode(['status' => 'error', 'message' => 'Please login first']);
+        exit;
+    }
+    
     $itemId = intval($_GET['itemId'] ?? 0);
     $groups = $itemId > 0 ? getItemOptionGroups($conn, $itemId, true) : [];
     
@@ -35,6 +35,11 @@ if ($action === 'get_item_options') {
 // 2. ADD TO CART (with options)
 // =============================================
 if ($action === 'add_to_cart') {
+    if (!$user_id) {
+        echo json_encode(['status' => 'error', 'message' => 'Please login first']);
+        exit;
+    }
+    
     $itemId = intval($_POST['itemId'] ?? 0);
     $quantity = max(1, intval($_POST['quantity'] ?? 1));
     $selectedRaw = $_POST['options'] ?? '[]';
@@ -74,7 +79,6 @@ if ($action === 'add_to_cart') {
     foreach ($groups as $g) {
         $picked = $selectedByGroup[$g['groupId']] ?? [];
         
-        // Required check
         if ($g['isRequired'] && empty($picked)) {
             echo json_encode([
                 'status' => 'error',
@@ -83,7 +87,6 @@ if ($action === 'add_to_cart') {
             exit;
         }
         
-        // Validate each option belongs to this group
         foreach ($picked as $oid) {
             foreach ($g['options'] as $opt) {
                 if ($opt['optionId'] == $oid) {
@@ -185,6 +188,86 @@ if ($action === 'add_to_cart') {
     $ins->close();
     
     echo json_encode(['status' => 'success', 'message' => 'Cart ထဲသို့ ထည့်ပြီးပါပြီ']);
+    exit;
+}
+
+// =============================================
+// 3. TRACK ORDER ✅ NEW
+// =============================================
+if ($action === 'track_order') {
+    $queueInput = trim($_POST['queue'] ?? $_GET['queue'] ?? '');
+    
+    if (empty($queueInput)) {
+        echo json_encode(['status' => 'error', 'message' => 'Queue နံပါတ် ထည့်ပါ']);
+        exit;
+    }
+    
+    $cleanInput = preg_replace('/[^0-9]/', '', $queueInput);
+    
+    $foundOrder = null;
+    
+    // Find by queue_number
+    $stmt = $conn->prepare("
+        SELECT o.*, u.username,
+               (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ', ') 
+                FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId 
+                WHERE oi.orderId = o.orderId) as items
+        FROM orders o 
+        LEFT JOIN users u ON o.userId = u.userId
+        WHERE o.queue_number = ?
+    ");
+    $stmt->bind_param("s", $queueInput);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res && $res->num_rows > 0) {
+        $foundOrder = $res->fetch_assoc();
+    }
+    $stmt->close();
+    
+    // Find by orderId
+    if (!$foundOrder && !empty($cleanInput)) {
+        $stmt = $conn->prepare("
+            SELECT o.*, u.username,
+                   (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ', ') 
+                    FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId 
+                    WHERE oi.orderId = o.orderId) as items
+            FROM orders o 
+            LEFT JOIN users u ON o.userId = u.userId
+            WHERE o.orderId = ?
+        ");
+        $stmt->bind_param("i", $cleanInput);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res && $res->num_rows > 0) {
+            $foundOrder = $res->fetch_assoc();
+        }
+        $stmt->close();
+    }
+    
+    if ($foundOrder) {
+        echo json_encode([
+            'status' => 'success',
+            'order' => [
+                'orderId' => $foundOrder['orderId'],
+                'queue_number' => $foundOrder['queue_number'],
+                'status' => strtolower($foundOrder['status']),
+                'orderType' => $foundOrder['orderType'],
+                'pickupTime' => $foundOrder['pickupTime'],
+                'points_used' => $foundOrder['points_used'],
+                'totalAmount' => $foundOrder['totalAmount'] ?? 0,
+                'specialRequest' => $foundOrder['specialRequest'] ?? '',
+                'rejectionReason' => $foundOrder['rejectionReason'] ?? '',
+                'rejected_items' => $foundOrder['rejected_items'] ?? '',
+                'items' => $foundOrder['items'] ?? '',
+                'username' => $foundOrder['username'] ?? 'Guest'
+            ]
+        ]);
+    } else {
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'ဒီ Queue နံပါတ်ဖြင့် Order မရှိပါ။'
+        ]);
+    }
     exit;
 }
 
