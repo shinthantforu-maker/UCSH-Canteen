@@ -119,7 +119,6 @@ if ($isLoggedIn) {
             margin-top: 8px;
         }
         
-        /* ✅ Rejected Item - Strike-through + Red */
         .rejected-item {
             color: #dc3545;
             text-decoration: line-through;
@@ -140,7 +139,6 @@ if ($isLoggedIn) {
             font-weight: 600;
         }
         
-        /* ✅ Accepted Item - Green */
         .accepted-item {
             color: #28a745;
             display: inline-block;
@@ -186,9 +184,6 @@ if ($isLoggedIn) {
             transition: width 0.8s ease;
         }
 
-        /* ============================================= */
-        /* ✅ REJECTED ITEMS SUMMARY BOX                 */
-        /* ============================================= */
         .reject-summary-box {
             background: #fff5f5;
             border: 1px solid #dc3545;
@@ -300,14 +295,7 @@ if ($isLoggedIn) {
             </div>
             <div id="trackDetails" class="small text-muted"></div>
             
-            <!-- ============================================= -->
-            <!-- ✅ ITEMS WITH REJECTED STATUS                -->
-            <!-- ============================================= -->
             <div id="trackItems" class="mt-2"></div>
-            
-            <!-- ============================================= -->
-            <!-- ✅ REJECT REASON & REJECTED ITEMS SUMMARY    -->
-            <!-- ============================================= -->
             <div id="trackRejectSummary" class="mt-2"></div>
             
             <div class="row text-center fs-7 text-muted fw-medium mt-2">
@@ -340,7 +328,6 @@ if ($isLoggedIn) {
                 elseif ($st === 'rejected') $badgeClass = 'bg-danger';
                 elseif ($st === 'partial_rejected') $badgeClass = 'bg-warning text-dark';
                 
-                // Parse items
                 $allItems = [];
                 $rejectedItems = [];
                 $acceptedItems = [];
@@ -368,7 +355,6 @@ if ($isLoggedIn) {
                     }
                 }
                 
-                // ✅ Check if there are any rejected items
                 $hasRejectedItems = !empty($rejectedItems);
             ?>
                 <div class="track-card p-4 mb-3">
@@ -386,9 +372,6 @@ if ($isLoggedIn) {
                         </div>
                     </div>
                     
-                    <!-- ============================================= -->
-                    <!-- ✅ ITEMS DISPLAY - CLEAR REJECTED STATUS    -->
-                    <!-- ============================================= -->
                     <div class="mt-2 pt-2 border-top">
                         <small class="text-muted fw-bold">Ordered Items:</small>
                         <div class="item-list mt-1">
@@ -422,12 +405,8 @@ if ($isLoggedIn) {
                         <div class="mt-1"><small class="text-muted">Special: <?= htmlspecialchars($ord['specialRequest']) ?></small></div>
                     <?php endif; ?>
                     
-                    <!-- ============================================= -->
-                    <!-- ✅ REJECT SUMMARY - ALWAYS SHOW IF REJECTED  -->
-                    <!-- ============================================= -->
                     <?php if ($hasRejectedItems || !empty($ord['rejectionReason'])): ?>
                         <?php 
-                            // Determine if partial or full
                             $isPartial = $hasRejectedItems && !empty($acceptedItems);
                             $boxClass = $isPartial ? 'partial-reject-box' : 'reject-reason-box';
                             $icon = $isPartial ? 'fa-triangle-exclamation text-warning' : 'fa-circle-exclamation text-danger';
@@ -477,12 +456,10 @@ function trackOrder() {
         return;
     }
 
-    let formData = new FormData();
-    formData.append('queue', queueNo);
-
-  fetch('trackapi.php?queue=' + encodeURIComponent(queueNo), {
-    method: 'GET'
-})
+    // ✅ CHANGED: trackapi.php → api.php?action=track_order
+    fetch('api.php?action=track_order&queue=' + encodeURIComponent(queueNo), {
+        method: 'GET'
+    })
     .then(res => res.json())
     .then(data => {
         let resultBox = document.getElementById('trackingResult');
@@ -517,7 +494,7 @@ function trackOrder() {
             document.getElementById('trackDetails').innerHTML = details;
 
             // =============================================
-            // ✅ SHOW ITEMS WITH REJECTED STATUS
+            // SHOW ITEMS WITH REJECTED STATUS
             // =============================================
             let itemsHtml = '';
             let rejectedItemsList = [];
@@ -547,18 +524,14 @@ function trackOrder() {
             }
             
             // =============================================
-            // ✅ REJECT SUMMARY - ALWAYS SHOW IF REJECTED
+            // REJECT SUMMARY
             // =============================================
             let rejectSummaryHtml = '';
             let hasRejection = (order.rejectionReason && order.rejectionReason.trim() !== '') || rejectedItemsList.length > 0;
             
             if (hasRejection) {
                 let isPartial = rejectedItemsList.length > 0 && rejectedItemsList.length < allItemsList.length;
-                let iconClass = isPartial ? 'fa-triangle-exclamation text-warning' : 'fa-circle-exclamation text-danger';
-                let titleText = isPartial ? 'Partially Rejected' : 'Rejected';
-                let boxClass = isPartial ? 'partial-reject-box' : 'reject-summary-box';
                 
-                // Override box class for better display
                 if (isPartial) {
                     rejectSummaryHtml = `<div class="partial-reject-box mt-2">
                         <div class="d-flex align-items-center gap-2">
@@ -577,7 +550,6 @@ function trackOrder() {
                     rejectSummaryHtml += `<div class="reject-items">❌ ${rejectedItemsList.join(', ')}</div>`;
                 }
                 
-                // Show accepted items if partial
                 if (isPartial) {
                     let acceptedItemsList = allItemsList.filter(item => !rejectedItemsList.includes(item));
                     if (acceptedItemsList.length > 0) {
