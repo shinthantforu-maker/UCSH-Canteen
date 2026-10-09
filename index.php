@@ -1276,7 +1276,10 @@ if ($showVoucher) {
                     $has_options = ($item['option_group_count'] > 0);
                 ?>
 
+                <!-- ✅ data-item-id + data-points ထည့် -->
                 <div class="col-6 col-sm-6 col-md-4 col-lg-3 menu-item-card" 
+                     data-item-id="<?= $item['itemId'] ?>"
+                     data-points="<?= $item['points'] ?>"
                      data-name="<?= htmlspecialchars(mb_strtolower($item['itemName'], 'UTF-8')) ?>"
                      data-category="<?= htmlspecialchars(mb_strtolower($item['category'] ?? '', 'UTF-8')) ?>">
     
@@ -1344,7 +1347,7 @@ if ($showVoucher) {
                                         <i class="fa-solid fa-ban me-1"></i>Out Of Stock
                                     </button>
                                 <?php else: ?>
-                                    <button onclick="addToCart(<?= $item['itemId'] ?>)" class="btn btn-brand btn-sm w-100 py-2 rounded-3 fw-medium">
+                                    <button onclick="addToCart(<?= $item['itemId'] ?>, <?= $item['points'] ?>)" class="btn btn-brand btn-sm w-100 py-2 rounded-3 fw-medium">
                                         <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
                                     </button>
                                 <?php endif; ?>
@@ -1378,7 +1381,7 @@ if ($showVoucher) {
                                             <i class="fa-solid fa-ban me-1"></i>Out of Stock
                                         </button>
                                     <?php else: ?>
-                                        <button onclick="addToCart(<?= $item['itemId'] ?>); bootstrap.Modal.getInstance(document.getElementById('detailModal<?= $item['itemId'] ?>')).hide();" class="btn btn-brand w-50 py-2 rounded-3 fw-medium">
+                                        <button onclick="addToCart(<?= $item['itemId'] ?>, <?= $item['points'] ?>); bootstrap.Modal.getInstance(document.getElementById('detailModal<?= $item['itemId'] ?>')).hide();" class="btn btn-brand w-50 py-2 rounded-3 fw-medium">
                                             <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
                                         </button>
                                     <?php endif; ?>
@@ -1401,9 +1404,7 @@ if ($showVoucher) {
 
 </div>
 
-<!-- ============================================= -->
-<!-- 🎯 OPTIONS MODAL (Add to Cart)                -->
-<!-- ============================================= -->
+<!-- OPTIONS MODAL -->
 <div class="modal fade" id="optionsModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content rounded-4 border-0 shadow-lg">
@@ -1578,12 +1579,23 @@ let currentOptionsGroups = [];
 let currentOptionsSelection = {};
 let currentBasePoints = 0;
 
-function addToCart(itemId) {
+// ✅ addToCart — basePoints parameter လက်ခံ
+function addToCart(itemId, basePoints = null) {
+    // Base points မပေးရင် — card ကနေ ဖမ်း
+    if (basePoints === null || basePoints === undefined) {
+        const card = document.querySelector(`[data-item-id="${itemId}"]`);
+        if (card) {
+            basePoints = parseInt(card.getAttribute('data-points')) || 0;
+        } else {
+            basePoints = 0;
+        }
+    }
+    
     fetch('api.php?action=get_item_options&itemId=' + itemId)
         .then(r => r.json())
         .then(data => {
             if (data.has_options) {
-                showOptionsModal(itemId, data.groups);
+                showOptionsModal(itemId, data.groups, basePoints);
             } else {
                 proceedAddToCart(itemId, []);
             }
@@ -1594,27 +1606,27 @@ function addToCart(itemId) {
         });
 }
 
-function showOptionsModal(itemId, groups) {
+// ✅ showOptionsModal — basePoints parameter လက်ခံ
+function showOptionsModal(itemId, groups, basePoints = null) {
     currentOptionsItemId = itemId;
     currentOptionsGroups = groups;
     currentOptionsSelection = {};
-    currentBasePoints = 0;
+    
+    // ✅ basePoints ကို parameter ကနေ ယူ (သို့) card ကနေ ဖမ်း
+    if (basePoints !== null && basePoints !== undefined && basePoints !== '') {
+        currentBasePoints = parseInt(basePoints) || 0;
+    } else {
+        const card = document.querySelector(`[data-item-id="${itemId}"]`);
+        if (card) {
+            currentBasePoints = parseInt(card.getAttribute('data-points')) || 0;
+        } else {
+            currentBasePoints = 0;
+        }
+    }
     
     groups.forEach(g => {
         currentOptionsSelection[g.groupId] = [];
     });
-    
-    // Base points — card မှ ရှာ
-    const card = document.querySelector(`[onclick*="addToCart(${itemId})"]`);
-    if (card) {
-        const cardEl = card.closest('.menu-card');
-        if (cardEl) {
-            const ptsEl = cardEl.querySelector('.points-text');
-            if (ptsEl) {
-                currentBasePoints = parseInt(ptsEl.textContent.replace(/[^0-9]/g, '')) || 0;
-            }
-        }
-    }
     
     const title = document.getElementById('optionsModalTitle');
     const body = document.getElementById('optionsModalBody');
@@ -1623,7 +1635,10 @@ function showOptionsModal(itemId, groups) {
     
     let html = '';
     groups.forEach((group) => {
-        const isRadio = group.maxSelect == 1;
+        // ✅ maxSelect parseInt နဲ့ သေချာဖတ် (default 1)
+        const maxSel = parseInt(group.maxSelect) || 1;
+        const isRadio = maxSel === 1;
+        
         html += `
             <div class="mb-4" data-group-id="${group.groupId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -1654,7 +1669,7 @@ function showOptionsModal(itemId, groups) {
                                data-group-id="${group.groupId}"
                                data-option-id="${optId}"
                                data-extra="${opt.extraPoints}"
-                               data-max="${group.maxSelect}"
+                               data-max="${maxSel}"
                                class="form-check-input m-0 option-input">
                         <span class="fw-medium">${escapeHtml(opt.optionName)}</span>
                     </div>
@@ -1680,6 +1695,7 @@ function showOptionsModal(itemId, groups) {
     });
     
     updateConfirmButton();
+    updateOptionsTotal(); // ✅ Initial total ပြ
     
     const modal = new bootstrap.Modal(document.getElementById('optionsModal'));
     modal.show();
@@ -1689,7 +1705,7 @@ function handleOptionChange(e) {
     const inp = e.target;
     const groupId = inp.dataset.groupId;
     const optionId = parseInt(inp.dataset.optionId);
-    const maxSelect = parseInt(inp.dataset.max);
+    const maxSelect = parseInt(inp.dataset.max) || 1;
     const isRadio = inp.type === 'radio';
     
     if (isRadio) {
@@ -1963,6 +1979,7 @@ function typeAIMessage(text) {
     }, 500);
 }
 
+// ✅ renderFavorite — data attributes + basePoints
 function renderFavorite(item) {
     const container = document.getElementById('aiFavoriteContent');
     if (!container) return;
@@ -1978,12 +1995,13 @@ function renderFavorite(item) {
                 ${item.order_count} ကြိမ် မှာဖူးတယ်
             </p>
         </div>
-        <button class="btn btn-sm btn-light rounded-3 fw-bold" onclick="addToCart(${item.itemId})">
+        <button class="btn btn-sm btn-light rounded-3 fw-bold" onclick="addToCart(${item.itemId}, ${item.points || 0})">
             <i class="fa-solid fa-cart-plus"></i>
         </button>
     `;
 }
 
+// ✅ renderSuggestions — data attributes + basePoints
 function renderSuggestions(items, greeting, emoji) {
     const grid = document.getElementById('aiSuggestionsGrid');
     const timeLabel = document.getElementById('aiTimeLabel');
@@ -2007,13 +2025,16 @@ function renderSuggestions(items, greeting, emoji) {
         const card = document.createElement('div');
         card.className = 'ai-suggestion-card';
         card.style.animationDelay = `${index * 0.1}s`;
+        // ✅ data attributes ထည့်
+        card.setAttribute('data-item-id', item.itemId);
+        card.setAttribute('data-points', item.points || 0);
         card.innerHTML = `
             <img src="${imgPath}" class="ai-suggestion-img" onerror="this.src='https://via.placeholder.com/200?text=Food'">
             <div class="ai-suggestion-body">
                 <div class="ai-suggestion-name">${item.itemName}</div>
                 <div class="ai-suggestion-points">${Number(item.points).toLocaleString()} Points</div>
                 <div class="ai-suggestion-reason">${reason}</div>
-                <button class="ai-suggestion-btn" onclick="addToCart(${item.itemId})">
+                <button class="ai-suggestion-btn" onclick="addToCart(${item.itemId}, ${item.points || 0})">
                     <i class="fa-solid fa-cart-plus me-1"></i>မှာယူမည်
                 </button>
             </div>
