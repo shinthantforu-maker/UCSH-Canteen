@@ -480,10 +480,9 @@ function trackOrder() {
     let formData = new FormData();
     formData.append('queue', queueNo);
 
-    fetch('api.php?action=track_order', {
-        method: 'POST',
-        body: formData
-    })
+  fetch('trackapi.php?queue=' + encodeURIComponent(queueNo), {
+    method: 'GET'
+})
     .then(res => res.json())
     .then(data => {
         let resultBox = document.getElementById('trackingResult');
