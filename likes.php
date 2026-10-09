@@ -43,8 +43,10 @@ $userData = $userResult->fetch_assoc();
 $currentPoints = $userData['points'] ?? 0;
 $userStmt->close();
 
-// Liked items
-$stmt = $conn->prepare("SELECT m.* FROM liked_items l 
+// Liked items WITH option_group_count
+$stmt = $conn->prepare("SELECT m.*, 
+                        (SELECT COUNT(*) FROM menu_option_groups WHERE itemId = m.itemId) as option_group_count
+                        FROM liked_items l 
                         JOIN menu_items m ON l.itemId = m.itemId 
                         WHERE l.userId = ? ORDER BY l.likeId DESC");
 $stmt->bind_param("i", $user_id);
@@ -186,13 +188,43 @@ $likedItems = $stmt->get_result();
             gap: 4px;
             border: 1px solid #fcd34d;
         }
+
+        /* 🎯 OPTIONS MODAL STYLES */
+        .option-choice {
+            cursor: pointer;
+            transition: all 0.2s;
+            background: white;
+        }
+        .option-choice:hover {
+            background: #EBF8F9 !important;
+            border-color: #1EAFBD !important;
+        }
+        .option-choice:has(input:checked) {
+            background: #EBF8F9 !important;
+            border-color: #1EAFBD !important;
+        }
+        .option-choice input:checked ~ span {
+            color: #1EAFBD;
+            font-weight: 700;
+        }
+
+        .options-indicator {
+            background: linear-gradient(135deg, #FEF3C7, #FDE68A);
+            color: #92400E;
+            border: 1px solid #FCD34D;
+            font-size: 0.65rem;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
     </style>
 </head>
 <body class="pb-5">
 
-    <!-- ============================================= -->
-    <!-- NAVBAR - Home, Queue, History, Points တန်းပြ -->
-    <!-- ============================================= -->
+    <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg sticky-top navbar-custom py-2">
         <div class="container">
             <a class="navbar-brand fw-bold fs-4 text-brand d-flex align-items-center me-3" href="index.php">
@@ -210,60 +242,38 @@ $likedItems = $stmt->get_result();
 
             <div class="collapse navbar-collapse" id="navbarIcons">
                 <div class="d-flex align-items-center ms-auto gap-1 mt-3 mt-lg-0 justify-content-around">
-                    
-                    <!-- ============================================= -->
-                    <!-- HOME ICON -> Index                           -->
-                    <!-- ============================================= -->
                     <a href="index.php" class="nav-icon-btn text-decoration-none" title="Home">
                         <i class="fa-solid fa-house"></i>
                         <span class="d-lg-none ms-2 small">Home</span>
                     </a>
 
-                    <!-- ============================================= -->
-                    <!-- QUEUE ICON -> Track                          -->
-                    <!-- ============================================= -->
                     <a href="track.php" class="nav-icon-btn text-decoration-none" title="Track Order">
                         <i class="fa-solid fa-clock-rotate-left"></i>
                         <span class="d-lg-none ms-2 small">Queue</span>
                     </a>
 
-                    <!-- ============================================= -->
-                    <!-- HISTORY ICON -> History                       -->
-                    <!-- ============================================= -->
                     <a href="history.php" class="nav-icon-btn text-decoration-none" title="Order History">
                         <i class="fa-solid fa-receipt"></i>
                         <span class="d-lg-none ms-2 small">History</span>
                     </a>
 
-                    <!-- ============================================= -->
-                    <!-- POINTS - Show directly in Nav                -->
-                    <!-- ============================================= -->
                     <span class="points-nav">
                         <i class="fa-solid fa-coins text-warning"></i> 
                         <span id="userPointsText"><?= number_format($currentPoints) ?></span>
                     </span>
 
-                    <!-- ============================================= -->
-                    <!-- LIKES - Active (text-brand)                   -->
-                    <!-- ============================================= -->
                     <a href="likes.php" class="nav-icon-btn text-decoration-none text-brand" title="Liked Items">
                         <i class="fa-solid fa-heart text-danger"></i>
                         <span class="badge rounded-pill nav-badge" id="likeBadge"><?= $like_count ?></span>
                         <span class="d-lg-none ms-2 small">Likes</span>
                     </a>
 
-                    <!-- ============================================= -->
-                    <!-- CART                                         -->
-                    <!-- ============================================= -->
                     <a href="cart.php" class="nav-icon-btn text-decoration-none" title="Cart">
                         <i class="fa-solid fa-cart-shopping"></i>
                         <span class="badge rounded-pill nav-badge" id="cartBadge"><?= $cart_count ?></span>
                         <span class="d-lg-none ms-2 small">Cart</span>
                     </a>
 
-                    <!-- ============================================= -->
-                    <!-- USER DROPDOWN                                -->
-                    <!-- ============================================= -->
                     <div class="dropdown ms-lg-2">
                         <a href="#" class="nav-icon-btn text-decoration-none d-flex align-items-center gap-2" data-bs-toggle="dropdown">
                             <i class="fa-regular fa-user-circle fs-5"></i>
@@ -280,7 +290,6 @@ $likedItems = $stmt->get_result();
                             <?php endif; ?>
                         </ul>
                     </div>
-
                 </div>
             </div>
         </div>
@@ -311,8 +320,12 @@ $likedItems = $stmt->get_result();
                             $imgPath = 'uploads/' . basename($item['image']);
                         }
                     }
+                    $has_options = ($item['option_group_count'] > 0);
                 ?>
-                    <div class="col-12 liked-item-row" id="itemCard<?= $item['itemId'] ?>" data-name="<?= htmlspecialchars(mb_strtolower($item['itemName'], 'UTF-8')) ?>">
+                    <div class="col-12 liked-item-row" id="itemCard<?= $item['itemId'] ?>" 
+                         data-item-id="<?= $item['itemId'] ?>"
+                         data-points="<?= $item['points'] ?>"
+                         data-name="<?= htmlspecialchars(mb_strtolower($item['itemName'], 'UTF-8')) ?>">
                         <div class="card like-card border-0 shadow-sm p-3">
                             <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
                                 
@@ -320,6 +333,11 @@ $likedItems = $stmt->get_result();
                                     <img src="<?= $imgPath ?>" class="rounded-3 shadow-sm" style="width: 75px; height: 75px; object-fit: cover;">
                                     <div>
                                         <span class="badge bg-brand-light text-brand fs-7 mb-1"><?= htmlspecialchars($item['category'] ?? 'General') ?></span>
+                                        <?php if ($has_options): ?>
+                                            <span class="options-indicator ms-1">
+                                                <i class="fa-solid fa-list-check"></i> ရွေးချယ်ရန်
+                                            </span>
+                                        <?php endif; ?>
                                         <h6 class="fw-bold text-dark mb-1"><?= htmlspecialchars($item['itemName']) ?></h6>
                                         <span class="text-warning fw-bold fs-6"><?= number_format($item['points']) ?> <small class="text-muted fw-normal fs-7">Points</small></span>
                                     </div>
@@ -330,7 +348,7 @@ $likedItems = $stmt->get_result();
                                         <i class="fa-solid fa-heart-broken"></i>
                                     </button>
 
-                                    <button onclick="addToCart(<?= $item['itemId'] ?>)" class="btn btn-brand rounded-3 px-3 py-2 fw-medium fs-7">
+                                    <button onclick="addToCart(<?= $item['itemId'] ?>, <?= $item['points'] ?>)" class="btn btn-brand rounded-3 px-3 py-2 fw-medium fs-7">
                                         <i class="fa-solid fa-cart-plus me-1"></i>ဝယ်မည်
                                     </button>
                                 </div>
@@ -350,7 +368,40 @@ $likedItems = $stmt->get_result();
 
     </div>
 
+    <!-- ============================================= -->
+    <!-- 🎯 OPTIONS MODAL (Add to Cart)                -->
+    <!-- ============================================= -->
+    <div class="modal fade" id="optionsModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content rounded-4 border-0 shadow-lg">
+                <div class="modal-header bg-light border-0">
+                    <h6 class="fw-bold m-0">
+                        <i class="fa-solid fa-list-check text-brand me-2"></i>
+                        <span id="optionsModalTitle">ရွေးချယ်ပါ</span>
+                    </h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4" id="optionsModalBody">
+                    <!-- Dynamic -->
+                </div>
+                <div class="modal-footer bg-light border-0">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-3 px-4" data-bs-dismiss="modal">
+                        မလုပ်တော့ပါ
+                    </button>
+                    <button type="button" class="btn btn-brand btn-sm rounded-3 px-4 fw-bold" 
+                            onclick="confirmAddToCart()" id="optionsConfirmBtn">
+                        <i class="fa-solid fa-cart-plus me-1"></i>Cart ထဲထည့်မည်
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // =============================================
+        // SEARCH
+        // =============================================
         document.getElementById('searchInput').addEventListener('input', function() {
             let filterValue = this.value.toLowerCase().trim();
             let items = document.querySelectorAll('.liked-item-row');
@@ -365,10 +416,224 @@ $likedItems = $stmt->get_result();
             });
         });
 
-        function addToCart(itemId) {
+        // =============================================
+        // 🎯 ADD TO CART WITH OPTIONS
+        // =============================================
+        let currentOptionsItemId = null;
+        let currentOptionsGroups = [];
+        let currentOptionsSelection = {};
+        let currentBasePoints = 0;
+
+        // ✅ addToCart — basePoints parameter
+        function addToCart(itemId, basePoints = null) {
+            if (basePoints === null || basePoints === undefined) {
+                const card = document.querySelector(`[data-item-id="${itemId}"]`);
+                if (card) {
+                    basePoints = parseInt(card.getAttribute('data-points')) || 0;
+                } else {
+                    basePoints = 0;
+                }
+            }
+            
+            fetch('api.php?action=get_item_options&itemId=' + itemId)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.has_options) {
+                        showOptionsModal(itemId, data.groups, basePoints);
+                    } else {
+                        proceedAddToCart(itemId, []);
+                    }
+                })
+                .catch(err => {
+                    console.error('Options fetch error:', err);
+                    proceedAddToCart(itemId, []);
+                });
+        }
+
+        // ✅ showOptionsModal
+        function showOptionsModal(itemId, groups, basePoints = null) {
+            currentOptionsItemId = itemId;
+            currentOptionsGroups = groups;
+            currentOptionsSelection = {};
+            
+            if (basePoints !== null && basePoints !== undefined && basePoints !== '') {
+                currentBasePoints = parseInt(basePoints) || 0;
+            } else {
+                const card = document.querySelector(`[data-item-id="${itemId}"]`);
+                if (card) {
+                    currentBasePoints = parseInt(card.getAttribute('data-points')) || 0;
+                } else {
+                    currentBasePoints = 0;
+                }
+            }
+            
+            groups.forEach(g => {
+                currentOptionsSelection[g.groupId] = [];
+            });
+            
+            const title = document.getElementById('optionsModalTitle');
+            const body = document.getElementById('optionsModalBody');
+            
+            title.textContent = 'ရွေးချယ်ပါ';
+            
+            let html = '';
+            groups.forEach((group) => {
+                const maxSel = parseInt(group.maxSelect) || 1;
+                const isRadio = maxSel === 1;
+                
+                html += `
+                    <div class="mb-4" data-group-id="${group.groupId}">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h6 class="fw-bold mb-0">
+                                ${escapeHtml(group.groupName)}
+                                ${group.isRequired == 1 
+                                    ? '<span class="badge bg-danger-subtle text-danger ms-1" style="font-size:0.65rem;">Required</span>' 
+                                    : '<span class="badge bg-secondary-subtle text-secondary ms-1" style="font-size:0.65rem;">Optional</span>'}
+                            </h6>
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                `;
+                
+                group.options.forEach(opt => {
+                    const optId = opt.optionId;
+                    const extraLabel = opt.extraPoints > 0 
+                        ? `<span class="badge bg-warning-subtle text-warning ms-2">+${Number(opt.extraPoints).toLocaleString()} pts</span>` 
+                        : '';
+                    
+                    html += `
+                        <label class="option-choice d-flex justify-content-between align-items-center p-2 border rounded-3" 
+                               data-group-id="${group.groupId}"
+                               data-option-id="${optId}">
+                            <div class="d-flex align-items-center gap-2">
+                                <input type="${isRadio ? 'radio' : 'checkbox'}" 
+                                       name="group_${group.groupId}" 
+                                       value="${optId}"
+                                       data-group-id="${group.groupId}"
+                                       data-option-id="${optId}"
+                                       data-extra="${opt.extraPoints}"
+                                       data-max="${maxSel}"
+                                       class="form-check-input m-0 option-input">
+                                <span class="fw-medium">${escapeHtml(opt.optionName)}</span>
+                            </div>
+                            ${extraLabel}
+                        </label>
+                    `;
+                });
+                
+                html += `</div></div>`;
+            });
+            
+            html += `
+                <div class="alert alert-light border rounded-3 d-flex justify-content-between align-items-center mb-0">
+                    <span class="fw-bold text-dark">Total Points:</span>
+                    <span class="fw-bold text-brand fs-5" id="optionsTotalDisplay">${currentBasePoints.toLocaleString()}</span>
+                </div>
+            `;
+            
+            body.innerHTML = html;
+            
+            body.querySelectorAll('.option-input').forEach(inp => {
+                inp.addEventListener('change', handleOptionChange);
+            });
+            
+            updateConfirmButton();
+            updateOptionsTotal();
+            
+            const modal = new bootstrap.Modal(document.getElementById('optionsModal'));
+            modal.show();
+        }
+
+        function handleOptionChange(e) {
+            const inp = e.target;
+            const groupId = inp.dataset.groupId;
+            const optionId = parseInt(inp.dataset.optionId);
+            const maxSelect = parseInt(inp.dataset.max) || 1;
+            const isRadio = inp.type === 'radio';
+            
+            if (isRadio) {
+                currentOptionsSelection[groupId] = [optionId];
+            } else {
+                if (!currentOptionsSelection[groupId]) currentOptionsSelection[groupId] = [];
+                if (inp.checked) {
+                    if (currentOptionsSelection[groupId].length >= maxSelect) {
+                        inp.checked = false;
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'ရွေးလို့မရပါ',
+                            text: `ဒီ group မှာ ${maxSelect} ခုသာ ရွေးလို့ရပါတယ်`,
+                            timer: 1500,
+                            showConfirmButton: false,
+                            toast: true,
+                            position: 'top'
+                        });
+                        return;
+                    }
+                    currentOptionsSelection[groupId].push(optionId);
+                } else {
+                    currentOptionsSelection[groupId] = currentOptionsSelection[groupId].filter(id => id !== optionId);
+                }
+            }
+            
+            updateConfirmButton();
+            updateOptionsTotal();
+        }
+
+        function updateOptionsTotal() {
+            let extra = 0;
+            Object.keys(currentOptionsSelection).forEach(gid => {
+                currentOptionsSelection[gid].forEach(optId => {
+                    const inp = document.querySelector(`.option-input[data-option-id="${optId}"]`);
+                    if (inp) extra += parseInt(inp.dataset.extra) || 0;
+                });
+            });
+            
+            const total = currentBasePoints + extra;
+            const disp = document.getElementById('optionsTotalDisplay');
+            if (disp) disp.textContent = total.toLocaleString() + ' Points';
+        }
+
+        function updateConfirmButton() {
+            const btn = document.getElementById('optionsConfirmBtn');
+            if (!btn) return;
+            
+            let allRequiredSelected = true;
+            currentOptionsGroups.forEach(g => {
+                if (g.isRequired == 1 && (!currentOptionsSelection[g.groupId] || currentOptionsSelection[g.groupId].length === 0)) {
+                    allRequiredSelected = false;
+                }
+            });
+            
+            btn.disabled = !allRequiredSelected;
+            btn.style.opacity = allRequiredSelected ? '1' : '0.5';
+        }
+
+        function confirmAddToCart() {
+            if (!currentOptionsItemId) return;
+            
+            const optionsArr = [];
+            currentOptionsGroups.forEach(g => {
+                const picked = currentOptionsSelection[g.groupId] || [];
+                picked.forEach(optId => {
+                    const inp = document.querySelector(`.option-input[data-option-id="${optId}"]`);
+                    if (inp) {
+                        optionsArr.push({
+                            groupId: parseInt(g.groupId),
+                            optionId: optId,
+                            extraPoints: parseInt(inp.dataset.extra) || 0
+                        });
+                    }
+                });
+            });
+            
+            bootstrap.Modal.getInstance(document.getElementById('optionsModal')).hide();
+            proceedAddToCart(currentOptionsItemId, optionsArr);
+        }
+
+        function proceedAddToCart(itemId, options) {
             let formData = new FormData();
             formData.append('itemId', itemId);
             formData.append('quantity', 1);
+            formData.append('options', JSON.stringify(options));
 
             fetch('api.php?action=add_to_cart', { method: 'POST', body: formData })
             .then(res => res.json())
@@ -388,7 +653,7 @@ $likedItems = $stmt->get_result();
                 } else {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Point မလုံလောက်ပါ',
+                        title: 'မအောင်မြင်ပါ',
                         text: data.message || 'သင့်တွင် Point မလုံလောက်ပါ။',
                         confirmButtonColor: '#1EAFBD',
                         customClass: { popup: 'swal-custom-popup' }
@@ -405,6 +670,9 @@ $likedItems = $stmt->get_result();
             });
         }
 
+        // =============================================
+        // REMOVE LIKE
+        // =============================================
         function removeLike(itemId) {
             let formData = new FormData();
             formData.append('itemId', itemId);
@@ -458,8 +726,19 @@ $likedItems = $stmt->get_result();
             })
             .catch(err => console.error(err));
         }
+
+        // =============================================
+        // ESCAPE HTML
+        // =============================================
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
     </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
+
