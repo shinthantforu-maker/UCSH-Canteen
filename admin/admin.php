@@ -180,21 +180,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // =============================================
+// EXPORT EXCEL FOR A SPECIFIC DATE
+// =============================================
+if (isset($_GET['export_excel']) && isset($_GET['date'])) {
+    $exportDate = $_GET['date'];
+    
+    // Validate date format
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $exportDate)) {
+        die("Invalid date format");
+    }
+    
+    // Get orders for that date
+    $exportQuery = "SELECT o.orderId, o.queue_number, u.username, u.phoneNumber,
+                    o.orderType, o.pickupTime, o.points_used, o.totalAmount, o.status,
+                    o.createdAt, o.specialRequest, o.rejectionReason,
+                    (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ' | ') 
+                     FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId 
+                     WHERE oi.orderId = o.orderId) as items
+                    FROM orders o
+                    LEFT JOIN users u ON o.userId = u.userId
+                    WHERE DATE(o.createdAt) = ?
+                    ORDER BY o.orderId ASC";
+    
+    $expStmt = $conn->prepare($exportQuery);
+    $expStmt->bind_param("s", $exportDate);
+    $expStmt->execute();
+    $expResult = $expStmt->get_result();
+    
+    // Set headers for Excel download
+    $filename = "ucsh_orders_" . $exportDate . ".xls";
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    
+    // Output as HTML table (Excel will open it)
+    echo "\xEF\xBB\xBF"; // UTF-8 BOM for Myanmar text
+    echo '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">';
+    echo '<head><meta charset="UTF-8">';
+    echo '<style>
+        table { border-collapse: collapse; }
+        th { background: #1EAFBD; color: white; padding: 8px; border: 1px solid #ccc; font-weight: bold; }
+        td { padding: 6px; border: 1px solid #ccc; }
+        .header { font-size: 16px; font-weight: bold; background: #EBF8F9; }
+    </style>';
+    echo '</head><body>';
+    
+    echo '<h2 style="color: #1EAFBD;">UCSH Canteen - Sales Report</h2>';
+    echo '<p><strong>Date:</strong> ' . htmlspecialchars($exportDate) . '</p>';
+    
+    // Summary
+    $summaryStmt = $conn->prepare("
+        SELECT 
+            COUNT(*) as totalOrders,
+            COALESCE(SUM(points_used), 0) as totalPoints,
+            COALESCE(SUM(CASE WHEN status NOT IN ('rejected') THEN points_used ELSE 0 END), 0) as validPoints,
+            COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completedOrders,
+            COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejectedOrders
+        FROM orders 
+        WHERE DATE(createdAt) = ?
+    ");
+    $summaryStmt->bind_param("s", $exportDate);
+    $summaryStmt->execute();
+    $summary = $summaryStmt->get_result()->fetch_assoc();
+    $summaryStmt->close();
+    
+    echo '<table style="margin-bottom: 20px;">';
+    echo '<tr><td class="header">Total Orders</td><td>' . $summary['totalOrders'] . '</td></tr>';
+    echo '<tr><td class="header">Completed Orders</td><td>' . $summary['completedOrders'] . '</td></tr>';
+    echo '<tr><td class="header">Rejected Orders</td><td>' . $summary['rejectedOrders'] . '</td></tr>';
+    echo '<tr><td class="header">Total Points Used</td><td>' . number_format($summary['totalPoints']) . '</td></tr>';
+    echo '<tr><td class="header">Valid Points (non-rejected)</td><td>' . number_format($summary['validPoints']) . '</td></tr>';
+    echo '</table>';
+    
+    // Orders table
+    echo '<table>';
+    echo '<thead><tr>';
+    echo '<th>#</th>';
+    echo '<th>Queue</th>';
+    echo '<th>Customer</th>';
+    echo '<th>Phone</th>';
+    echo '<th>Items</th>';
+    echo '<th>Type</th>';
+    echo '<th>Pickup Time</th>';
+    echo '<th>Points</th>';
+    echo '<th>Status</th>';
+    echo '<th>Created At</th>';
+    echo '<th>Special Request</th>';
+    echo '<th>Rejection Reason</th>';
+    echo '</tr></thead><tbody>';
+    
+    $rowNum = 1;
+    if ($expResult && $expResult->num_rows > 0) {
+        while ($ord = $expResult->fetch_assoc()) {
+            echo '<tr>';
+            echo '<td>' . $rowNum++ . '</td>';
+            echo '<td>' . htmlspecialchars($ord['queue_number'] ?? 'Q-' . str_pad($ord['orderId'], 3, '0', STR_PAD_LEFT)) . '</td>';
+            echo '<td>' . htmlspecialchars($ord['username'] ?? 'Guest') . '</td>';
+            echo '<td>' . htmlspecialchars($ord['phoneNumber'] ?? '-') . '</td>';
+            echo '<td>' . htmlspecialchars($ord['items'] ?? 'No items') . '</td>';
+            echo '<td>' . strtoupper($ord['orderType']) . '</td>';
+            echo '<td>' . htmlspecialchars($ord['pickupTime']) . '</td>';
+            echo '<td>' . number_format($ord['points_used']) . '</td>';
+            echo '<td>' . strtoupper($ord['status']) . '</td>';
+            echo '<td>' . date('d/m/Y h:i A', strtotime($ord['createdAt'])) . '</td>';
+            echo '<td>' . htmlspecialchars($ord['specialRequest'] ?? '') . '</td>';
+            echo '<td>' . htmlspecialchars($ord['rejectionReason'] ?? '') . '</td>';
+            echo '</tr>';
+        }
+    } else {
+        echo '<tr><td colspan="12" style="text-align:center;">No orders found for this date</td></tr>';
+    }
+    
+    echo '</tbody></table>';
+    echo '</body></html>';
+    $expStmt->close();
+    exit();
+}
+
+// =============================================
 // STATISTICS
 // =============================================
-$totalPoints = $conn->query("
-    SELECT COALESCE(SUM(points_used), 0) as totalPoints 
-    FROM orders 
-    WHERE createdAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-    AND status NOT IN ('rejected')
-")->fetch_assoc()['totalPoints'] ?? 0;
-
-$totalPointsUsed = $conn->query("
-    SELECT COALESCE(SUM(points_used), 0) as todayPoints 
-    FROM orders 
-    WHERE DATE(createdAt) = CURDATE()
-    AND status NOT IN ('rejected')
-")->fetch_assoc()['todayPoints'] ?? 0;
+$totalPoints = $conn->query("SELECT SUM(points) as totalPoints FROM users")->fetch_assoc()['totalPoints'] ?? 0;
+$totalPointsUsed = $conn->query("SELECT SUM(points_used) as todayPoints FROM orders WHERE DATE(createdAt) = CURDATE()")->fetch_assoc()['todayPoints'] ?? 0;
 
 $status_result = $conn->query("SELECT status, COUNT(*) as count FROM orders GROUP BY status");
 $orderStatusCounts = [];
@@ -248,23 +356,25 @@ while ($row = $catStmt->fetch_assoc()) {
     $catCounts[] = (int)$row['total'];
 }
 
-// FETCH ORDERS
+// =============================================
+// FETCH ORDERS - Last 5 days (no limit)
+// =============================================
 $orders_query = "SELECT o.*, u.username, 
-                (SELECT GROUP_CONCAT(CONCAT(m.itemId, ':', m.itemName, ':', 
-                    COALESCE(oi.selected_options, ''), ':', oi.quantity) SEPARATOR '|') 
+                (SELECT GROUP_CONCAT(CONCAT(m.itemId, ':', m.itemName, ' (', oi.quantity, ')') SEPARATOR '|') 
                  FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = o.orderId) as items_with_id,
                 (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ', ') 
                  FROM order_items oi JOIN menu_items m ON oi.itemId = m.itemId WHERE oi.orderId = o.orderId) as items 
                 FROM orders o 
                 LEFT JOIN users u ON o.userId = u.userId 
-                ORDER BY o.orderId DESC LIMIT 20";
+                WHERE o.createdAt >= DATE_SUB(NOW(), INTERVAL 5 DAY)
+                ORDER BY o.orderId DESC";
 $orders_result = $conn->query($orders_query);
 
 // AJAX MODE
 if ($isAjax) {
     ?>
     <div class="row g-3 mb-4">
-        <div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7-Day Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
+        <div class="col-md-3"><div class="stat-card"><div class="stat-label">Total Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">Active Orders</div><div class="stat-number text-dark" data-stat="activeOrders"><?= $activeOrders ?></div></div></div>
         <div class="col-md-3"><div class="stat-card"><div class="stat-label">Top Seller</div><div class="stat-number fs-3 text-dark text-truncate" data-stat="topSeller"><?= htmlspecialchars($topSeller) ?></div></div></div>
@@ -394,18 +504,6 @@ if ($isAjax) {
             color: white;
             transform: scale(1.1);
         }
-
-        /* Option badges in items table */
-        .option-badge-sm {
-            background: #EBF8F9;
-            color: #0F5860;
-            border: 1px solid #B8F0F5;
-            font-size: 0.6rem;
-            padding: 1px 6px;
-            border-radius: 12px;
-            display: inline-block;
-            margin: 1px;
-        }
     </style>
 </head>
 <body>
@@ -481,8 +579,8 @@ if ($isAjax) {
 
         <!-- Stats -->
         <div class="row g-3 mb-4">
-            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📊 7 ရက်အတွင်းရောင်းရသော points </div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
-            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 ယနေ့ရောင်းရသော Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
+            <div class="col-md-3"><div class="stat-card"><div class="stat-label">Total Points</div><div class="stat-number text-warning" data-points-stat="totalPoints"><?= number_format($totalPoints) ?></div></div></div>
+            <div class="col-md-3"><div class="stat-card"><div class="stat-label">📅 Today's Points</div><div class="stat-number text-brand" data-points-stat="todayPoints"><?= number_format($totalPointsUsed) ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">Active Orders</div><div class="stat-number text-dark" data-stat="activeOrders"><?= $activeOrders ?></div></div></div>
             <div class="col-md-3"><div class="stat-card"><div class="stat-label">Top Seller</div><div class="stat-number fs-3 text-dark text-truncate" data-stat="topSeller"><?= htmlspecialchars($topSeller) ?></div></div></div>
         </div>
@@ -518,10 +616,32 @@ if ($isAjax) {
             </div>
         </div>
 
+        <!-- ✅ EXCEL DOWNLOAD SECTION -->
+        <div class="stat-card mb-4">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <h6 class="fw-bold mb-1"><i class="fa-solid fa-file-excel text-success me-2"></i>Download Daily Sales Report</h6>
+                    <small class="text-muted">ရောင်းအားကို ရက်ရွေးပြီး Excel ဖိုင်အနေနဲ့ ဒေါင်းလို့ရပါတယ်</small>
+                </div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <input type="date" id="exportDate" class="form-control form-control-sm" style="max-width: 180px;" value="<?= date('Y-m-d') ?>">
+                    <button onclick="downloadExcel()" class="btn btn-success btn-sm rounded-3 fw-medium px-3">
+                        <i class="fa-solid fa-download me-1"></i>Download Excel
+                    </button>
+                    <button onclick="downloadTodayExcel()" class="btn btn-outline-success btn-sm rounded-3 fw-medium px-3">
+                        <i class="fa-solid fa-calendar-day me-1"></i>Today
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <!-- Orders Table -->
         <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
             <div class="card-header bg-white py-3 border-0 d-flex justify-content-between align-items-center">
-                <h6 class="fw-bold m-0 text-dark"><i class="fa-solid fa-list-check text-brand me-2"></i>Recent Orders</h6>
+                <h6 class="fw-bold m-0 text-dark">
+                    <i class="fa-solid fa-list-check text-brand me-2"></i>Recent Orders
+                    <small class="text-muted fw-normal ms-2">(နောက်ဆုံး ၅ ရက်စာ)</small>
+                </h6>
                 <span class="badge bg-success-subtle text-success"><i class="fa-solid fa-circle" style="font-size: 6px;"></i> Live</span>
             </div>
             <div class="table-responsive">
@@ -669,7 +789,7 @@ if ($isAjax) {
                 
                 <div id="detailsDeliveryBox" class="mb-3" style="display: none;">
                     <h6 class="fw-bold mb-2">
-                        <i class="fa-solid fa-box text-brand me-1"></i>Delivery Info
+                        <i class="fa-solid fa-motorcycle text-brand me-1"></i>Delivery Info
                     </h6>
                     <div class="bg-light p-3 rounded-3 border">
                         <div class="d-flex justify-content-between mb-1">
@@ -746,6 +866,26 @@ if ($isAjax) {
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
+// ✅ EXCEL DOWNLOAD
+function downloadExcel() {
+    const dateInput = document.getElementById('exportDate').value;
+    if (!dateInput) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ရက် ရွေးပါ',
+            confirmButtonColor: '#1EAFBD'
+        });
+        return;
+    }
+    window.location.href = 'admin.php?export_excel=1&date=' + encodeURIComponent(dateInput);
+}
+
+function downloadTodayExcel() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('exportDate').value = today;
+    window.location.href = 'admin.php?export_excel=1&date=' + today;
+}
+
 // CHARTS
 new Chart(document.getElementById('salesChart'), {
     type: 'line',
@@ -909,9 +1049,7 @@ if ('speechSynthesis' in window) {
     window.speechSynthesis.getVoices();
 }
 
-// =============================================
-// SHOW ORDER DETAILS (FIXED VERSION)
-// =============================================
+// SHOW ORDER DETAILS
 function showOrderDetails(orderId) {
     document.getElementById('detailsItemsBody').innerHTML = 
         '<tr><td colspan="4" class="text-center text-muted"><i class="fa-solid fa-spinner fa-spin me-2"></i>Loading...</td></tr>';
@@ -943,91 +1081,29 @@ function showOrderDetails(orderId) {
             else if (st === 'partial_rejected') badgeClass = 'bg-warning text-dark';
             statusBadge.className = 'badge ' + badgeClass;
             
-            // Build items table
             let itemsHtml = '';
-            let acceptedTotal = 0;
-            let rejectedTotal = 0;
+            let totalPoints = 0;
             
             if (items && items.length > 0) {
                 items.forEach(item => {
                     const itemTotal = item.price * item.quantity;
+                    totalPoints += itemTotal;
                     
-                    // Build options badge HTML
-                    let optionsHtml = '';
-                    if (item.options && item.options.length > 0) {
-                        optionsHtml = '<div class="mt-1">';
-                        item.options.forEach(opt => {
-                            const extra = opt.extraPoints > 0 
-                                ? `<span class="text-warning fw-bold ms-1">(+${Number(opt.extraPoints).toLocaleString()})</span>` 
-                                : '';
-                            optionsHtml += `<span class="option-badge-sm"><i class="fa-solid fa-check me-1" style="color: #1EAFBD;"></i>${opt.optionName}${extra}</span>`;
-                        });
-                        optionsHtml += '</div>';
-                    }
-                    
-                    if (item.is_rejected) {
-                        rejectedTotal += itemTotal;
-                        itemsHtml += `
-                            <tr style="opacity: 0.7; background: #fff5f5;">
-                                <td>
-                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
-                                        <i class="fa-solid fa-circle-xmark me-1"></i>
-                                        ${item.itemName}
-                                    </span>
-                                    <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
-                                    ${optionsHtml}
-                                </td>
-                                <td class="text-center">
-                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
-                                </td>
-                                <td class="text-end">
-                                    <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
-                                </td>
-                                <td class="text-end">
-                                    <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
-                                </td>
-                            </tr>
-                        `;
-                    } else {
-                        acceptedTotal += itemTotal;
-                        itemsHtml += `
-                            <tr>
-                                <td>
-                                    <i class="fa-solid fa-circle-check text-success me-1"></i>
-                                    <strong>${item.itemName}</strong>
-                                    ${optionsHtml}
-                                </td>
-                                <td class="text-center">${item.quantity}</td>
-                                <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
-                                <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
-                            </tr>
-                        `;
-                    }
-                });
-                
-                if (rejectedTotal > 0) {
                     itemsHtml += `
-                        <tr style="background: #f8f9fa; border-top: 2px solid #dee2e6;">
-                            <td colspan="3" class="text-end fw-bold text-success" style="font-size: 0.85rem;">
-                                <i class="fa-solid fa-circle-check me-1"></i>Accepted Total:
-                            </td>
-                            <td class="text-end fw-bold text-success">${Number(acceptedTotal).toLocaleString()} pts</td>
-                        </tr>
-                        <tr style="background: #fff5f5;">
-                            <td colspan="3" class="text-end fw-bold text-danger" style="font-size: 0.85rem;">
-                                <i class="fa-solid fa-circle-xmark me-1"></i>Rejected Total:
-                            </td>
-                            <td class="text-end fw-bold text-danger" style="text-decoration: line-through; text-decoration-color: #dc3545;">${Number(rejectedTotal).toLocaleString()} pts</td>
+                        <tr>
+                            <td>${item.itemName}</td>
+                            <td class="text-center">${item.quantity}</td>
+                            <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
+                            <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
                         </tr>
                     `;
-                }
+                });
             } else {
                 itemsHtml = '<tr><td colspan="4" class="text-center text-muted">No items</td></tr>';
             }
             
             document.getElementById('detailsItemsBody').innerHTML = itemsHtml;
             
-            // Special Request
             if (order.specialRequest && order.specialRequest.trim() !== '') {
                 document.getElementById('detailsSpecialRequest').textContent = order.specialRequest;
                 document.getElementById('detailsSpecialRequestBox').style.display = 'block';
@@ -1035,7 +1111,6 @@ function showOrderDetails(orderId) {
                 document.getElementById('detailsSpecialRequestBox').style.display = 'none';
             }
             
-            // Delivery Info
             if (order.orderType === 'delivery' && order.deliveryAddress) {
                 document.getElementById('detailsDeliveryAddress').textContent = order.deliveryAddress;
                 document.getElementById('detailsDeliveryFee').textContent = '+' + Number(order.deliveryFee).toLocaleString() + ' pts';
@@ -1044,7 +1119,6 @@ function showOrderDetails(orderId) {
                 document.getElementById('detailsDeliveryBox').style.display = 'none';
             }
             
-            // Rejection Info
             if ((st === 'rejected' || st === 'partial_rejected') && order.rejectionReason) {
                 document.getElementById('detailsRejectionReason').textContent = order.rejectionReason;
                 
@@ -1221,9 +1295,7 @@ function showRejectModal(orderId, itemsWithId) {
         var itemsList = [];
         parts.forEach(function(part) {
             var d = part.split(':');
-            if (d.length >= 2) {
-                itemsList.push({id: d[0], name: d[1]});
-            }
+            if (d.length == 2) itemsList.push({id: d[0], name: d[1]});
         });
         
         if (itemsList.length > 0) {
