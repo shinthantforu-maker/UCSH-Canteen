@@ -31,13 +31,17 @@ if (!$order) {
     exit();
 }
 
+// =============================================
 // Rejected item IDs
+// =============================================
 $rejectedItemIds = [];
 if (!empty($order['rejected_items']) && $order['rejected_items'] !== 'all') {
     $rejectedItemIds = array_map('intval', explode(',', $order['rejected_items']));
 }
 
+// =============================================
 // Get order items WITH selected_options
+// =============================================
 $itemsStmt = $conn->prepare("
     SELECT oi.*, m.itemName 
     FROM order_items oi 
