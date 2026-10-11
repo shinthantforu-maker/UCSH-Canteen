@@ -192,7 +192,7 @@ if ($action === 'add_to_cart') {
 }
 
 // =============================================
-// 3. TRACK ORDER ✅ NEW
+// 3. TRACK ORDER — ✅ FIXED: rejected_items → itemName
 // =============================================
 if ($action === 'track_order') {
     $queueInput = trim($_POST['queue'] ?? $_GET['queue'] ?? '');
@@ -245,6 +245,34 @@ if ($action === 'track_order') {
     }
     
     if ($foundOrder) {
+        // ✅ Convert rejected item IDs → item NAMES
+        $rejectedItemsNames = [];
+        if (!empty($foundOrder['rejected_items']) && $foundOrder['rejected_items'] !== 'all') {
+            $rejectedIds = array_map('intval', explode(',', $foundOrder['rejected_items']));
+            $rejectedIds = array_filter($rejectedIds);
+            
+            if (!empty($rejectedIds)) {
+                $placeholders = implode(',', array_fill(0, count($rejectedIds), '?'));
+                $types = str_repeat('i', count($rejectedIds));
+                $rejStmt = $conn->prepare("SELECT itemName FROM menu_items WHERE itemId IN ($placeholders)");
+                $rejStmt->bind_param($types, ...$rejectedIds);
+                $rejStmt->execute();
+                $rejRes = $rejStmt->get_result();
+                while ($r = $rejRes->fetch_assoc()) {
+                    $rejectedItemsNames[] = $r['itemName'];
+                }
+                $rejStmt->close();
+            }
+        }
+        
+        // ✅ If rejected_items = 'all', mark all items as rejected
+        $rejectedItemsStr = '';
+        if ($foundOrder['rejected_items'] === 'all') {
+            $rejectedItemsStr = 'all';
+        } elseif (!empty($rejectedItemsNames)) {
+            $rejectedItemsStr = implode(',', $rejectedItemsNames);
+        }
+        
         echo json_encode([
             'status' => 'success',
             'order' => [
@@ -257,7 +285,7 @@ if ($action === 'track_order') {
                 'totalAmount' => $foundOrder['totalAmount'] ?? 0,
                 'specialRequest' => $foundOrder['specialRequest'] ?? '',
                 'rejectionReason' => $foundOrder['rejectionReason'] ?? '',
-                'rejected_items' => $foundOrder['rejected_items'] ?? '',
+                'rejected_items' => $rejectedItemsStr,
                 'items' => $foundOrder['items'] ?? '',
                 'username' => $foundOrder['username'] ?? 'Guest'
             ]
