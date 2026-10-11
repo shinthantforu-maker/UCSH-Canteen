@@ -230,16 +230,15 @@ if (isset($_GET['export_excel']) && isset($_GET['date'])) {
     echo '<p><strong>Date:</strong> ' . htmlspecialchars($exportDate) . '</p>';
     
     // Summary
-    $summaryStmt = $conn->prepare("
-        SELECT 
-            COUNT(*) as totalOrders,
-            COALESCE(SUM(points_used), 0) as totalPoints,
-            COALESCE(SUM(CASE WHEN status NOT IN ('rejected') THEN points_used ELSE 0 END), 0) as validPoints,
-            COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completedOrders,
-            COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejectedOrders
-        FROM orders 
-        WHERE DATE(createdAt) = ?
-    ");
+  $summaryStmt = $conn->prepare("
+    SELECT 
+        COUNT(*) as totalOrders,
+        COALESCE(SUM(points_used), 0) as totalPoints,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completedOrders,
+        COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejectedOrders
+    FROM orders 
+    WHERE DATE(createdAt) = ?
+");
     $summaryStmt->bind_param("s", $exportDate);
     $summaryStmt->execute();
     $summary = $summaryStmt->get_result()->fetch_assoc();
@@ -249,9 +248,8 @@ if (isset($_GET['export_excel']) && isset($_GET['date'])) {
     echo '<tr><td class="header">Total Orders</td><td>' . $summary['totalOrders'] . '</td></tr>';
     echo '<tr><td class="header">Completed Orders</td><td>' . $summary['completedOrders'] . '</td></tr>';
     echo '<tr><td class="header">Rejected Orders</td><td>' . $summary['rejectedOrders'] . '</td></tr>';
-    echo '<tr><td class="header">Total Points Used</td><td>' . number_format($summary['totalPoints']) . '</td></tr>';
-    echo '<tr><td class="header">Valid Points (non-rejected)</td><td>' . number_format($summary['validPoints']) . '</td></tr>';
-    echo '</table>';
+   echo '<tr><td class="header">Total Points Used</td><td>' . number_format($summary['totalPoints']) . '</td></tr>';
+echo '</table>';
     
     // Orders table
     echo '<table>';
@@ -1081,28 +1079,99 @@ function showOrderDetails(orderId) {
             else if (st === 'partial_rejected') badgeClass = 'bg-warning text-dark';
             statusBadge.className = 'badge ' + badgeClass;
             
-            let itemsHtml = '';
-            let totalPoints = 0;
-            
-            if (items && items.length > 0) {
-                items.forEach(item => {
-                    const itemTotal = item.price * item.quantity;
-                    totalPoints += itemTotal;
-                    
-                    itemsHtml += `
-                        <tr>
-                            <td>${item.itemName}</td>
-                            <td class="text-center">${item.quantity}</td>
-                            <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
-                            <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
-                        </tr>
-                    `;
-                });
-            } else {
-                itemsHtml = '<tr><td colspan="4" class="text-center text-muted">No items</td></tr>';
-            }
-            
-            document.getElementById('detailsItemsBody').innerHTML = itemsHtml;
+          let itemsHtml = '';
+let acceptedTotal = 0;
+let rejectedTotal = 0;
+
+if (items && items.length > 0) {
+    items.forEach(item => {
+        const itemTotal = item.price * item.quantity;
+        
+        // ✅ Build options badge HTML
+        let optionsHtml = '';
+        if (item.options && item.options.length > 0) {
+            optionsHtml = '<div class="mt-1">';
+            item.options.forEach(opt => {
+                const extra = opt.extraPoints > 0 
+                    ? `<span class="text-warning fw-bold ms-1">(+${Number(opt.extraPoints).toLocaleString()})</span>` 
+                    : '';
+                optionsHtml += `<span class="badge" style="background: #EBF8F9; color: #0F5860; border: 1px solid #B8F0F5; font-size: 0.65rem; margin-right: 3px;">
+                    <i class="fa-solid fa-check me-1" style="color: #1EAFBD;"></i>${opt.optionName}${extra}
+                </span>`;
+            });
+            optionsHtml += '</div>';
+        }
+        
+        if (item.is_rejected) {
+            // ✅ REJECTED ITEM — Red strike-through
+            rejectedTotal += itemTotal;
+            itemsHtml += `
+                <tr style="opacity: 0.75; background: #fff5f5;">
+                    <td>
+                        <span style="text-decoration: line-through; text-decoration-color: #dc3545; text-decoration-thickness: 2px; color: #dc3545;">
+                            <i class="fa-solid fa-circle-xmark me-1"></i>
+                            ${item.itemName}
+                        </span>
+                        <span class="badge bg-danger ms-2" style="font-size: 0.6rem;">REJECTED</span>
+                        ${optionsHtml}
+                    </td>
+                    <td class="text-center">
+                        <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${item.quantity}</span>
+                    </td>
+                    <td class="text-end">
+                        <span style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(item.price).toLocaleString()} pts</span>
+                    </td>
+                    <td class="text-end">
+                        <span class="fw-bold" style="text-decoration: line-through; text-decoration-color: #dc3545; color: #dc3545;">${Number(itemTotal).toLocaleString()} pts</span>
+                    </td>
+                </tr>
+            `;
+        } else {
+            // ✅ ACCEPTED ITEM
+            acceptedTotal += itemTotal;
+            itemsHtml += `
+                <tr>
+                    <td>
+                        <i class="fa-solid fa-circle-check text-success me-1"></i>
+                        <strong>${item.itemName}</strong>
+                        ${optionsHtml}
+                    </td>
+                    <td class="text-center">${item.quantity}</td>
+                    <td class="text-end">${Number(item.price).toLocaleString()} pts</td>
+                    <td class="text-end fw-bold">${Number(itemTotal).toLocaleString()} pts</td>
+                </tr>
+            `;
+        }
+    });
+    
+    // ✅ Add Summary Rows if there are rejected items
+    if (rejectedTotal > 0) {
+        itemsHtml += `
+            <tr style="background: #f0fff4; border-top: 2px solid #28a745;">
+                <td colspan="3" class="text-end fw-bold text-success" style="font-size: 0.85rem;">
+                    <i class="fa-solid fa-circle-check me-1"></i>Accepted Cost:
+                </td>
+                <td class="text-end fw-bold text-success">${Number(acceptedTotal).toLocaleString()} pts</td>
+            </tr>
+            <tr style="background: #fff5f5;">
+                <td colspan="3" class="text-end fw-bold text-danger" style="font-size: 0.85rem;">
+                    <i class="fa-solid fa-circle-xmark me-1"></i>Rejected Cost:
+                </td>
+                <td class="text-end fw-bold text-danger" style="text-decoration: line-through; text-decoration-color: #dc3545;">${Number(rejectedTotal).toLocaleString()} pts</td>
+            </tr>
+            <tr style="background: #f8f9fa; border-top: 2px solid #dee2e6;">
+                <td colspan="3" class="text-end fw-bold text-dark" style="font-size: 0.9rem;">
+                    <i class="fa-solid fa-calculator me-1"></i>Net Total:
+                </td>
+                <td class="text-end fw-bold text-dark" style="font-size: 0.9rem;">${Number(acceptedTotal).toLocaleString()} pts</td>
+            </tr>
+        `;
+    }
+} else {
+    itemsHtml = '<tr><td colspan="4" class="text-center text-muted">No items</td></tr>';
+}
+
+document.getElementById('detailsItemsBody').innerHTML = itemsHtml;
             
             if (order.specialRequest && order.specialRequest.trim() !== '') {
                 document.getElementById('detailsSpecialRequest').textContent = order.specialRequest;
