@@ -49,11 +49,9 @@ if ($isLoggedIn) {
                              FROM order_items oi 
                              JOIN menu_items m ON oi.itemId = m.itemId 
                              WHERE oi.orderId = o.orderId) as items,
-                            (SELECT GROUP_CONCAT(CONCAT(m.itemName, ' (', oi.quantity, ')') SEPARATOR ', ') 
-                             FROM order_items oi 
-                             JOIN menu_items m ON oi.itemId = m.itemId 
-                             WHERE oi.orderId = o.orderId 
-                             AND FIND_IN_SET(oi.itemId, o.rejected_items)) as rejected_item_names,
+                            (SELECT GROUP_CONCAT(m.itemName SEPARATOR ', ') 
+                             FROM menu_items m
+                             WHERE FIND_IN_SET(m.itemId, o.rejected_items)) as rejected_item_names,
                             (SELECT GROUP_CONCAT(CONCAT(m.itemId, ':', m.itemName, ' (', oi.quantity, ')') SEPARATOR '|') 
                              FROM order_items oi 
                              JOIN menu_items m ON oi.itemId = m.itemId 
@@ -90,8 +88,6 @@ if ($isLoggedIn) {
         .search-box .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #94A3B8; }
         .track-card { background: #ffffff; border-radius: 20px; border: 1px solid #E2E8F0; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05); position: relative; overflow: hidden; transition: transform 0.2s ease; }
         .track-card::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 6px; background: linear-gradient(90deg, var(--brand-color) 0%, #17939F 100%); }
-        .tracking-steps { display: flex; justify-content: space-between; position: relative; margin: 20px 0; padding: 0 10px; }
-        .tracking-steps::before { content: ''; position: absolute; top: 15px; left: 30px; right: 30px; height: 3px; background: #E2E8F0; z-index: 1; }
         .step-item { position: relative; z-index: 2; text-align: center; flex: 1; }
         .step-icon { width: 34px; height: 34px; border-radius: 50%; background: #F1F5F9; color: #94A3B8; display: flex; align-items: center; justify-content: center; margin: 0 auto 6px auto; font-size: 0.85rem; border: 2px solid #E2E8F0; transition: all 0.3s ease; }
         .step-item.active .step-icon { background: var(--brand-color); color: #fff; border-color: var(--brand-color); box-shadow: 0 0 10px rgba(30, 175, 189, 0.4); }
@@ -456,7 +452,6 @@ function trackOrder() {
         return;
     }
 
-    // ✅ CHANGED: trackapi.php → api.php?action=track_order
     fetch('api.php?action=track_order&queue=' + encodeURIComponent(queueNo), {
         method: 'GET'
     })
@@ -494,7 +489,7 @@ function trackOrder() {
             document.getElementById('trackDetails').innerHTML = details;
 
             // =============================================
-            // SHOW ITEMS WITH REJECTED STATUS
+            // ✅ SHOW ITEMS WITH REJECTED STATUS
             // =============================================
             let itemsHtml = '';
             let rejectedItemsList = [];
@@ -502,18 +497,27 @@ function trackOrder() {
             
             if (order.items) {
                 allItemsList = order.items.split(', ');
-                let rejectedIds = order.rejected_items ? order.rejected_items.split(',').map(id => id.trim()) : [];
+                
+                // ✅ rejected_items now contains item NAMES (from api.php)
+                let rejectedNames = [];
+                if (order.rejected_items === 'all') {
+                    // All items rejected
+                    rejectedNames = allItemsList.slice();
+                } else if (order.rejected_items) {
+                    rejectedNames = order.rejected_items.split(',').map(n => n.trim()).filter(n => n !== '');
+                }
                 
                 itemsHtml = `<div class="mt-2 pt-2 border-top"><small class="text-muted fw-bold">Items:</small><div class="item-list mt-1">`;
                 allItemsList.forEach(item => {
                     let isRejected = false;
-                    rejectedIds.forEach(rejId => {
-                        if (item.includes('(' + rejId + ')')) {
+                    rejectedNames.forEach(rejName => {
+                        if (rejName && item.includes(rejName)) {
                             isRejected = true;
-                            rejectedItemsList.push(item);
                         }
                     });
+                    
                     if (isRejected) {
+                        rejectedItemsList.push(item);
                         itemsHtml += `<span class="item rejected"><span class="rejected-item"><i class="fa-solid fa-circle-xmark me-1"></i>${item} <span class="reject-badge">REJECTED</span></span></span>`;
                     } else {
                         itemsHtml += `<span class="item accepted"><span class="accepted-item"><i class="fa-solid fa-circle-check me-1"></i>${item} <span class="accept-badge">ACCEPTED</span></span></span>`;
